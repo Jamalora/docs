@@ -1,5 +1,0 @@
-# API Stock
-
-```
-curl https://,....
-```
