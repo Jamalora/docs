@@ -167,13 +167,13 @@ curl -X POST https://api.mofavo.com/woocommerce/stock \
 
 **Endpoint:** `POST /woocommerce/status`
 
-Get order status and destination information by order reference codes.
+Get order status and destination information by their WooCommerce order reference codes.
 
 ### Request
 
 ```json
 {
-  "refs": ["order-ref-1", "order-ref-2"]
+  "refs": ["ref-order1", "ref-order2"]
 }
 ```
 
@@ -182,15 +182,24 @@ Get order status and destination information by order reference codes.
 ```json
 {
   "success": true,
-  "data": {
-    "status": "shipped",
-    "finalDestination": "123 Main Street, City, Country"
-  }
+  "orders": [
+    {
+      "ref": "ref-order1",
+      "status": "draft",
+      "finalDestination": "address-1"
+    },
+    {
+      "ref": "ref-order2",
+      "status": "readyForPickUp",
+      "finalDestination": "address-2"
+    }
+  ]
 }
 ```
 
 **Response fields:**
-- `status` - Current order status (e.g., "draft", "shipped", "delivered")
+- `ref` - Order's woocomerce reference
+- `status` - Current order status (e.g., "draft", "readyForPickUp", "inTransit")
 - `finalDestination` - Delivery address
 
 **Note:** Only orders that match the refs AND belong to your merchant will be returned.
@@ -209,10 +218,10 @@ const statusData = await makeWooCommerceRequest(
 console.log(statusData);
 // {
 //   success: true,
-//   data: {
-//     status: 'shipped',
-//     finalDestination: '123 Main Street, City, Country'
-//   }
+//   orders: [
+//     { ref: 'ref-order1', status: 'draft', finalDestination: 'address-1' },
+//     { ref: 'ref-order2', status: 'readyForPickUp', finalDestination: 'address-2' }
+//   ]
 // }
 ```
 
