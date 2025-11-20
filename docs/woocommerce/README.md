@@ -4,8 +4,6 @@
 
 **Base URL:** `https://api.mofavo.com`
 
-**Client Secret:** Set the `WOOCOMMERCE_CLIENT_SECRET` variable (value: `Mofavo.ftw2025`)
-
 **Available APIs:**
 - **Stock API** (`POST /woocommerce/stock`) - Get product stock quantities
 - **Status API** (`POST /woocommerce/status`) - Get order status and destination
@@ -16,11 +14,10 @@ Both APIs use the same authentication method.
 
 1. [Quick Start](#quick-start)
 2. [Authentication](#authentication)
-3. [Helper Function](#helper-function)
-4. [Stock API](#stock-api)
-5. [Status API](#status-api)
-6. [Common Error Responses](#common-error-responses)
-7. [Support](#support)
+3. [Stock API](#stock-api)
+4. [Status API](#status-api)
+5. [Common Error Responses](#common-error-responses)
+6. [Support](#support)
 
 ## Authentication
 
@@ -33,11 +30,6 @@ Include in the `Authorization` header:
 Authorization: Bearer <your-jwt-token>
 ```
 
-**Token must contain:**
-- `merchantId` (required) - Your merchant ID
-- `jti` (required) - Unique token identifier (UUID)
-- `senderId`, `partnerId`, `contractId` (optional)
-
 ### 2. Request Signature
 
 Include in the `x-mofavo-signature` header:
@@ -45,11 +37,11 @@ Include in the `x-mofavo-signature` header:
 x-mofavo-signature: <base64-encoded-signature>
 ```
 
-**Generate signature using HMAC-SHA256:**
+**Create a signature using HMAC-SHA256 (don’t forget to use your real secret key in `<your-secret-key>`). The result should be encoded as a `base64` string:**
 ```javascript
 const crypto = require('crypto');
 const signature = crypto
-  .createHmac('sha256', WOOCOMMERCE_CLIENT_SECRET)
+  .createHmac('sha256', '<your-secret-key>')
   .update(JSON.stringify(requestBody), 'utf8')
   .digest('base64');
 ```
@@ -62,42 +54,6 @@ const signature = crypto
 | `x-mofavo-signature` | `<base64-encoded-signature>` |
 | `Content-Type` | `application/json` |
 
-## Helper Function
-
-Use this reusable function for all API requests:
-
-```javascript
-const crypto = require('crypto');
-const axios = require('axios');
-
-// Set this to your client secret (e.g., from environment variable)
-const WOOCOMMERCE_CLIENT_SECRET = process.env.WOOCOMMERCE_CLIENT_SECRET;
-const BASE_URL = 'https://api.mofavo.com';
-
-async function makeWooCommerceRequest(endpoint, requestBody, jwtToken) {
-  // Generate signature
-  const signature = crypto
-    .createHmac('sha256', WOOCOMMERCE_CLIENT_SECRET)
-    .update(JSON.stringify(requestBody), 'utf8')
-    .digest('base64');
-
-  // Make request
-  const response = await axios.post(
-    `${BASE_URL}${endpoint}`,
-    requestBody,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwtToken}`,
-        'x-mofavo-signature': signature
-      }
-    }
-  );
-
-  return response.data;
-}
-```
-
 ## Stock API
 
 **Endpoint:** `POST /woocommerce/stock`
@@ -105,12 +61,14 @@ async function makeWooCommerceRequest(endpoint, requestBody, jwtToken) {
 Get stock quantities for products by their reference codes.
 
 ### Request
-
+**Note:** Replace `product-ref-1` and `product-ref-2` with your actual product reference codes.
 ```json
 {
   "refs": ["product-ref-1", "product-ref-2"]
 }
 ```
+
+
 
 ### Response
 
@@ -134,27 +92,6 @@ Get stock quantities for products by their reference codes.
 
 ### Example
 
-```javascript
-const stockData = await makeWooCommerceRequest(
-  '/woocommerce/stock',
-  {
-    refs: ['product-ref-1', 'product-ref-2']
-  },
-  jwtToken
-);
-
-console.log(stockData);
-// {
-//   success: true,
-//   products: [
-//     { ref: 'product-ref-1', quantity: 10 },
-//     { ref: 'product-ref-2', quantity: 5 }
-//   ]
-// }
-```
-
-### cURL Example
-
 ```bash
 curl -X POST https://api.mofavo.com/woocommerce/stock \
   -H "Content-Type: application/json" \
@@ -171,11 +108,15 @@ Get order status and destination information by their WooCommerce order referenc
 
 ### Request
 
+**Note:** Replace `ref-order1` and `ref-order2` with your actual order reference codes.
+
 ```json
 {
   "refs": ["ref-order1", "ref-order2"]
 }
 ```
+
+
 
 ### Response
 
@@ -206,33 +147,12 @@ Get order status and destination information by their WooCommerce order referenc
 
 ### Example
 
-```javascript
-const statusData = await makeWooCommerceRequest(
-  '/woocommerce/status',
-  {
-    refs: ['order-ref-1', 'order-ref-2']
-  },
-  jwtToken
-);
-
-console.log(statusData);
-// {
-//   success: true,
-//   orders: [
-//     { ref: 'ref-order1', status: 'draft', finalDestination: 'address-1' },
-//     { ref: 'ref-order2', status: 'readyForPickUp', finalDestination: 'address-2' }
-//   ]
-// }
-```
-
-### cURL Example
-
 ```bash
 curl -X POST https://api.mofavo.com/woocommerce/status \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your-jwt-token>" \
   -H "x-mofavo-signature: <base64-encoded-signature>" \
-  -d '{"refs": ["order-ref-1", "order-ref-2"]}'
+  -d '{"refs": ["ref-order1", "ref-order2"]}'
 ```
 
 ## Common Error Responses
