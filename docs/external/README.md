@@ -1,31 +1,32 @@
-# External API Order Callback
+# Mofavo External Orders API
 
-This Lambda powers the external API endpoint that third-party apps use to create
-orders in Mofavo. Each app authenticates with its own API key and HMAC
-signature, while the merchant and sender context comes from a Bearer token.
+Use this endpoint to create orders in Mofavo.
 
 ## Endpoint
 
-- `POST /external`
+`POST https://api.mofavo.com/external`
 
-## Authentication
+## Required headers
 
-Two checks are required on every request:
+- `Content-Type: application/json`
+- `x-mofavo-api-key: <your app api key>`
+- `x-mofavo-signature: <base64 hmac>`
+- `Authorization: Bearer <jwt>`
 
-1) App authentication via headers:
-   - `x-mofavo-api-key`
-   - `x-mofavo-signature` (HMAC SHA256 base64 of the raw request body)
+### Signature generation
 
-2) Merchant/sender authentication via Bearer token:
-   - `Authorization: Bearer <jwt>`
+Compute `x-mofavo-signature` as:
 
+- HMAC SHA256 of the **raw request body** (exact JSON string you send)
+- Using your **app secret** as the key
+- Base64‑encode the HMAC output
 
 ## Request body
 
 ```json
 {
   "data": {
-    "reference": "EXT-10001",
+    "status": "draft",
     "customer": {
       "name": "Jane Doe",
       "phone": "+2348012345678",
@@ -47,11 +48,48 @@ Two checks are required on every request:
 }
 ```
 
-## Responses
+### Status rules
 
-- `201` created
+`status` must be one of:
+
+- `draft`
+- `readyForPackaging`
+- `readyForPickUp`
+
+If `status` is not `draft`, your Bearer token must include `contractId`.
+
+### Status meanings
+
+- `draft`: Order needs confirmation in Mofavo before packaging.
+- `readyForPackaging`: Order is confirmed (or merchant skips confirmation) and should be packaged in Mofavo.
+- `readyForPickUp`: Order is already packaged (or merchant handles packaging outside Mofavo) and is ready for pickup by the delivery partner.
+
+## Response
+
+Success (201):
+
+```json
+{
+  "id": 12345
+}
+```
+
+## Error responses
+
+- `400` invalid payload
 - `401` missing/invalid signature or token
 - `403` invalid API key
-- `400` sender/merchant lookup failure
-- `500` misconfigured service
 
+Errors return JSON with a short message, for example:
+
+```json
+{
+  "error": "Invalid payload",
+  "issues": [
+    {
+      "path": "data.customer.name",
+      "message": "Required"
+    }
+  ]
+}
+```
