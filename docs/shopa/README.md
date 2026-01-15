@@ -27,6 +27,31 @@ Two layers are required:
    - Send the JWT in `Authorization: Bearer <jwt>`.
    - The token must include `merchantId` and `senderId`.
 
+### Signature Example (JavaScript)
+
+```js
+import { createHmac } from "crypto";
+
+const body = JSON.stringify({
+  ref: "shopa-1732",
+  name: "Tedst Test",
+  phone: "+21690909090",
+  comments: [
+    {
+      content: "First comment",
+      time: "2026-01-06T11:19:13+01:00",
+    },
+  ],
+});
+
+const apiSecret = process.env.SHOPA_API_SECRET;
+const signature = createHmac("sha256", apiSecret)
+  .update(body, "utf8")
+  .digest("base64");
+
+console.log(signature);
+```
+
 ## Request Body
 
 ```json
