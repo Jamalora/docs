@@ -1,71 +1,23 @@
-# Create merchant — integration guide
+# Livra Integration Guide (Production)
 
-This document describes how to call the **create merchant** API from your application.
+This document describes how to call Livra integration endpoints from your app.
 
----
+## Shared authentication headers
 
-## Endpoint (production)
+Use these headers for both endpoints:
 
-| Item | Value |
-|------|--------|
-| **URL** | `https://livra.mofavo.com/create_merchant` |
-| **Method** | `POST` |
+- `Content-Type: application/json`
+- `x-api-key: <apiKey>`
+- `x-signature: <hexHmac>`
 
----
+`x-signature` must be `HMAC-SHA256(rawRequestBody, apiSecret)` encoded as lowercase hex (optionally prefixed with `sha256=`).
 
-## Headers
+## Create Merchant
 
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Content-Type` | Yes | Must be `application/json`. |
-| `x-api-key` | Yes | API key issued for your integration. |
-| `x-signature` | Yes | HMAC-SHA256 of the **exact raw JSON body** (the same bytes you send in the request body), using your **API secret** as the HMAC key. Send the digest as a **lowercase hex string** (optionally prefixed with `sha256=`). |
+- **URL:** `https://livra.mofavo.com/create_merchant`
+- **Method:** `POST`
 
-**Signing (conceptually):**
-
-- Build the JSON body string exactly as you will send it (same ordering and spacing if you care about byte-for-byte identity — typically you serialize once and reuse that string for both signing and the body).
-- Compute `HMAC-SHA256(body, api_secret)`.
-- Encode the result as **hex** and put it in `x-signature`.
-
----
-
-## Request body (JSON)
-
-The body is a single JSON object with three nested objects: `merchant`, `sender`, and `contract`.
-
-### `merchant`
-
-| Field | Type | Notes |
-|-------|------|--------|
-| `name` | string | Non-empty after trim. |
-| `state` | string | Non-empty after trim. |
-| `city` | string | Non-empty after trim. |
-| `street` | string | Non-empty after trim. |
-| `phoneNumber` | string | Non-empty after trim. |
-| `zipcode` | string | Non-empty after trim. |
-| `TRN` | string | Non-empty after trim. |
-| `CIN` | number | Integer, **8 digits** (e.g. `10000000`–`99999999`). |
-
-### `sender`
-
-| Field | Type | Notes |
-|-------|------|--------|
-| `name` | string | Non-empty after trim. |
-| `state` | string | Non-empty after trim. |
-| `city` | string | Non-empty after trim. |
-| `street` | string | Non-empty after trim. |
-| `phoneNumber` | string | Non-empty after trim. |
-
-### `contract`
-
-| Field | Type | Notes |
-|-------|------|--------|
-| `deliveryPartnerId` | number | Positive integer. |
-| `deliveryFee` | number | Non-negative; decimal values allowed. |
-| `exchangeFee` | number | Non-negative; decimal values allowed. |
-| `cancellationFee` | number | Non-negative; decimal values allowed. |
-
-### Example (shape only)
+### Request body
 
 ```json
 {
@@ -95,37 +47,78 @@ The body is a single JSON object with three nested objects: `merchant`, `sender`
 }
 ```
 
----
+### Rules
 
-## Successful response
+- `merchant.CIN` must be an 8-digit integer.
+- All merchant/sender string fields must be non-empty.
+- `contract.deliveryPartnerId` must be a positive integer.
+- Contract fees must be non-negative numbers.
 
-| HTTP status | Body |
-|-------------|------|
-| **201 Created** | `{ "merchantId": <number> }` |
+### Success
 
-`merchantId` is the identifier of the created merchant in the system.
+- **201**: `{ "merchantId": <number> }`
 
----
+### Errors
 
-## Error responses
+- **400** invalid payload
+- **401** missing/invalid auth headers/signature
+- **500** internal error
 
-All error bodies are JSON. Typical patterns:
+## Create Order
 
-| HTTP status | When | Example body |
-|-------------|------|----------------|
-| **400 Bad Request** | Invalid or incomplete JSON body; missing/invalid fields in `merchant`, `sender`, or `contract`. | `{ "ok": false, "error": "<message>" }` — `error` describes the validation problem (e.g. missing field, invalid `CIN`, invalid fees). |
-| **401 Unauthorized** | Missing `x-api-key` / `x-signature`; unknown or inactive API key; or signature does not match the body + secret. | `{ "ok": false, "error": "Missing authentication headers" }` or `"Invalid api key"` or `"Invalid signature"` |
-| **500 Internal Server Error** | Unexpected server-side failure. | `{ "ok": false, "error": "internal_error" }` |
+- **URL:** `https://livra.mofavo.com/create_order`
+- **Method:** `POST`
 
-On **401**, do not retry with the same signature on a changed body — recompute the signature from the exact new body.
+### Request body
 
----
+```json
+{
+  "products": [
+    { "name": "string", "quantity": 1, "price": 12.5 },
+    { "name": "string", "quantity": 2 }
+  ],
+  "productsToRetrieve": [
+    { "name": "string", "quantity": 1 },
+    { "name": "", "quantity": 0 }
+  ],
+  "merchantId": 1,
+  "deliveryPartnerId": 1,
+  "primaryName": "string",
+  "primaryPhone": "string",
+  "primaryPhone2": "",
+  "primaryStreet": "",
+  "primaryZone": "",
+  "primaryCity": "string",
+  "primaryState": "string",
+  "primaryZipcode": "",
+  "deliveryInstructions": "",
+  "amount": 12.5,
+  "allowOpen": true,
+  "isExchange": true,
+  "isFragile": false
+}
+```
 
-## Credentials
+### Rules
 
-You will receive:
+- `products` is required and must be a non-empty array.
+- Each `products[]` item needs non-empty `name`, positive integer `quantity`, optional non-negative `price`.
+- `merchantId` and `deliveryPartnerId` must be positive integers.
+- `primaryName`, `primaryPhone`, `primaryCity`, `primaryState` must be non-empty.
+- `amount` must be non-negative.
+- `allowOpen`, `isExchange`, `isFragile` must be booleans.
+- If `isExchange=true`, `productsToRetrieve` is expected. Invalid/missing entries still proceed with fallback name `"unknown"`.
 
-- **API key** — sent as `x-api-key`.
-- **API secret** — used only to compute `x-signature` (never sent in headers or body).
+### Success
 
-Keep the secret confidential.
+- **201**: `{ "orderId": <number> }`
+
+### Errors
+
+- **400** one of:
+  - `merchant_not_found`
+  - `no_active_contract`
+  - `sender_not_found`
+  - validation errors
+- **401** missing/invalid auth headers/signature
+- **500** internal error
