@@ -94,7 +94,7 @@ Use these headers for both endpoints:
   "deliveryInstructions": "",
   "amount": 12.5,
   "allowOpen": true,
-  "isExchange": true,
+  "isExchange": false,
   "isFragile": false
 }
 ```
@@ -120,5 +120,59 @@ Use these headers for both endpoints:
   - `no_active_contract`
   - `sender_not_found`
   - validation errors
+- **401** missing/invalid auth headers/signature
+- **500** internal error
+
+## Update Order
+
+- **URL:** `https://livra.mofavo.com/update_order`
+- **Method:** `POST`
+
+### Request body
+
+Patch-style payload. Only `orderId` is required; all other fields are optional.
+
+```json
+{
+  "orderId": 1234,
+  "products": [{ "name": "string", "quantity": 1 }],
+  "productsToRetrieve": [{ "name": "string", "quantity": 1 }],
+  "primaryName": "string",
+  "primaryPhone": "string",
+  "primaryPhone2": "",
+  "primaryStreet": "",
+  "primaryZone": "",
+  "primaryCity": "string",
+  "primaryState": "string",
+  "primaryZipcode": "",
+  "deliveryInstructions": "",
+  "amount": 12.5,
+  "allowOpen": true,
+  "isExchange": false,
+  "isFragile": false
+}
+```
+
+### Constraints
+
+- `orderId` must exist.
+- Existing order status must still be `readyForPickUp`; otherwise update is rejected.
+- `merchantId`, `senderId`, and `contractId` are not accepted in payload and are never changed.
+- Missing fields keep their current DB value.
+- If a provided field has the same value, it is ignored (no rewrite).
+
+
+### Success
+
+- **200**: `{ "orderId": <number> }`
+
+When something actually changed, an `order-updated` row is appended to `HistoryEvents` with `eventData.updatedBy` (API key id + label) and `eventData.changes` (field-level diff, including shipping products and products-to-retrieve).
+
+### Errors
+
+- **400** one of:
+  - `order_not_found`
+  - `order_update_not_permitted`
+  - plus all create-order 400 errors
 - **401** missing/invalid auth headers/signature
 - **500** internal error
