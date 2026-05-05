@@ -261,6 +261,7 @@ X-Webhook-Signature: <hmac-hex>
 ```json
 {
   "ok": true,
+  "timestamp": "2026-05-05T11:23:00Z",
   "orders": [
     {
       "id": 1234,
@@ -270,6 +271,8 @@ X-Webhook-Signature: <hmac-hex>
   ]
 }
 ```
+
+`timestamp` is when the event was detected on the platform, in UTC ISO 8601. On retries the timestamp reflects the **original event time**, not the retry time — use it to understand when something changed, not when you received the notification.
 
 ### What `deliveryStatus` and `orderStatus` mean
 
@@ -409,7 +412,7 @@ A quick way to simulate a webhook delivery locally:
 
 ```bash
 SECRET="your-secret"
-BODY='{"ok":true,"orders":[{"id":1234,"deliveryStatus":"pending","orderStatus":"inTransitToCustomer"}]}'
+BODY='{"ok":true,"timestamp":"2026-05-05T11:23:00Z","orders":[{"id":1234,"deliveryStatus":"pending","orderStatus":"inTransitToCustomer"}]}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
 curl -X POST https://your-endpoint.example.com/webhook \
