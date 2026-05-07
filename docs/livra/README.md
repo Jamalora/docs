@@ -266,13 +266,16 @@ X-Webhook-Signature: <hmac-hex>
     {
       "id": 1234,
       "deliveryStatus": "pending",
-      "orderStatus": "inTransitToCustomer"
+      "orderStatus": "inTransitToCustomer",
+      "comment": null
     }
   ]
 }
 ```
 
 `timestamp` is when the event was detected on the platform, in UTC ISO 8601. On retries the timestamp reflects the **original event time**, not the retry time — use it to understand when something changed, not when you received the notification.
+
+Each entry in **`orders`** can include **`comment`**: driver last-mile input for that specific order update. When relevant it is one of `unreachable`, `declined`, or `rescheduled`. Otherwise it is **`null`** (the event update for that order was not triggered by driver input).
 
 ### What `deliveryStatus` and `orderStatus` mean
 
@@ -412,7 +415,7 @@ A quick way to simulate a webhook delivery locally:
 
 ```bash
 SECRET="your-secret"
-BODY='{"ok":true,"timestamp":"2026-05-05T11:23:00Z","orders":[{"id":1234,"deliveryStatus":"pending","orderStatus":"inTransitToCustomer"}]}'
+BODY='{"ok":true,"timestamp":"2026-05-05T11:23:00Z","orders":[{"id":1234,"deliveryStatus":"pending","orderStatus":"inTransitToCustomer","comment":null}]}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
 curl -X POST https://your-endpoint.example.com/webhook \
