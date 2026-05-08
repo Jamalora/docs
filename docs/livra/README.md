@@ -245,6 +245,8 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 ## Order status webhooks
 
+> 📣 **Heads up — upcoming change.** A new event-based webhook payload is in development and is currently deployed to **Livra's staging environment only**. **Production still sends the format described in this section, and that is what you should build against today.** Preview the upcoming format (do not implement against it yet): [Livra Webhooks — Staging Preview](webhooks-preview.md).
+
 When you include **`callback_link`** on [create order](#create-order), Livra calls that URL with an outbound webhook on every meaningful change to the order.
 
 ### Request format
