@@ -1,42 +1,15 @@
-# Livra Webhooks — Staging Preview
-
-> 🚫 **DO NOT IMPLEMENT AGAINST THIS YET.**
->
-> This page describes an upcoming webhook format that is **only deployed to
-> Livra's staging environment**. It is **not** what `livra.mofavo.com`
-> production sends today, and it is **subject to change** before it ships.
-> If you code against this format and point it at production, your endpoint
-> will not receive anything it recognises.
->
-> **What production sends today** — and what you should be coding against —
-> is documented in
-> [Order status webhooks](README.md#order-status-webhooks) in the main
-> integration guide.
+# Livra Webhooks — Advanced (v1)
 
 [← Back to Livra integration guide](README.md)
 
-## What's changing
-
-The webhook is moving from a single batched message with `deliveryStatus` /
-`orderStatus` / `comment` to a per-event model. Each delivery represents one
-event, with an explicit event name, a snapshot of the order's current
-tracked fields, and the previous values for the fields that the event
-covers. The driver `comment` field is replaced by dedicated `driver.*`
-events.
-
-What stays the same: the request method, the headers (`X-Webhook-ID`,
-`X-Webhook-Signature`), HMAC-SHA256 signature verification with your
-Livra API secret, the 10-second response timeout, the 5-attempt retry
-schedule, and the rules for acknowledging deliveries. Refer to the
-[production webhook section](README.md#order-status-webhooks) for those —
-nothing in that material changes.
+The advanced webhook delivers the raw event payload exactly as recorded by the platform. You receive the full context — previous values, driver identity, mission details — and derive your own conclusions from it. If you prefer a pre-computed, compact summary instead, see the [simple webhook](README.md#simple-webhook).
 
 ## Event catalogue
 
 Two families of events: **order events**, driven by changes on the shipping
-order itself, and **driver events**, driven by driver actions during
-last-mile delivery. Both require `callback_link` to have been set when the
-order was created.
+order itself, and **driver events**, driven by driver actions during last-mile
+delivery. Both require `callback_link` to have been set when the order was
+created.
 
 ### Order events
 
@@ -56,15 +29,31 @@ change in the same update, the first match in this priority order wins:
 
 ### Driver events
 
-Emitted when the driver records a last-mile outcome. Other mission
-transitions (e.g. `success`, `inTransit`, `fail`, `blocked`, `ready`) do
-**not** produce a webhook.
+Emitted when the driver records a last-mile outcome. Other mission transitions
+(e.g. `success`, `inTransit`, `fail`, `blocked`, `ready`) do **not** produce a
+webhook.
 
 | `event`              | Fires when                           |
 | -------------------- | ------------------------------------ |
 | `driver.declined`    | recipient declined the delivery      |
 | `driver.unreachable` | driver could not reach the recipient |
 | `driver.dated`       | delivery rescheduled to a later date |
+
+## Request format
+
+```
+POST <your-callback-url>
+Content-Type: application/json
+X-Webhook-ID: <delivery-uuid>
+X-Webhook-Signature: <hmac-hex>
+X-Webhook-Type: advanced
+X-Webhook-Version: 1
+```
+
+`X-Webhook-Type` identifies the webhook flavour (`simple` or `advanced`).
+`X-Webhook-Version` is the version within that flavour. Use both together to
+route parsing logic if you ever handle more than one flavour or version on the
+same endpoint.
 
 ## Payload
 
@@ -80,11 +69,15 @@ Every event uses the same envelope:
 }
 ```
 
-`order_id` is the shipping order id returned by [Create Order](README.md#create-order). `timestamp` is when the event was detected on the platform, in UTC ISO 8601; on retries it reflects the **original event time**, not the retry time. The contents of `data` and `previous` differ between order events and driver events.
+`order_id` is the shipping order id returned by [Create Order](README.md#create-order).
+`timestamp` is when the event was detected on the platform, in UTC ISO 8601. On
+retries it reflects the **original event time**, not the retry time.
 
 ### Order event payload
 
-For `status.changed`, `destination.changed`, `position.updated`, and `delivery_date.changed`, `data` is the current snapshot of the four tracked fields, and `previous` is their values immediately before the change.
+For `status.changed`, `destination.changed`, `position.updated`, and
+`delivery_date.changed`, `data` is the current snapshot of the four tracked
+fields; `previous` is their values immediately before the change.
 
 ```json
 {
@@ -108,7 +101,9 @@ For `status.changed`, `destination.changed`, `position.updated`, and `delivery_d
 
 ### Driver event payload
 
-For `driver.declined`, `driver.unreachable`, and `driver.dated`, `data` carries driver identity and last-mile context plus a snapshot of the order's headline fields. `previous` carries only the prior `missionStatus`.
+For `driver.declined`, `driver.unreachable`, and `driver.dated`, `data` carries
+driver identity and last-mile context plus a snapshot of the order's headline
+fields. `previous` carries only the prior `missionStatus`.
 
 ```json
 {
@@ -144,8 +139,6 @@ For `driver.declined`, `driver.unreachable`, and `driver.dated`, `data` carries 
 
 ### `status`
 
-Where the order sits in the operational pipeline.
-
 | Value | Meaning |
 | --- | --- |
 | `readyForPickUp` | Created and waiting to be collected by a courier. |
@@ -160,8 +153,6 @@ Where the order sits in the operational pipeline.
 
 ### `finalDestination`
 
-Where the parcel is currently heading.
-
 | Value | Meaning |
 | --- | --- |
 | `primaryRecipient` | Toward the customer. |
@@ -175,34 +166,22 @@ A string with five `##`-separated fields:
 <entityName>##<street>##<city>##<state>##<zipcode>
 ```
 
-`entityName` is the merchant, the delivery-partner depot, or the primary
-recipient that the parcel is currently at; the address fields are that
-entity's address.
-
 ### `deliveryDate`
 
 ISO 8601 date (`YYYY-MM-DD`), or `null` if delivery has not happened yet.
 
 ## Deriving delivery outcome
 
-The webhook no longer sends a `deliveryStatus` field. Derive it from
-`deliveryDate` and `finalDestination`:
+The advanced payload does not include a pre-computed `deliveryStatus`. Derive it
+from `deliveryDate` and `finalDestination`:
 
 | Condition | Outcome |
 | --- | --- |
-| `deliveryDate` is `null` and `finalDestination` is `primaryRecipient` | `pending` — still in play |
-| `deliveryDate` is `null` and `finalDestination` is `merchant` | `declined` — customer refused, parcel is on its way back to the merchant |
-| `deliveryDate` is not `null` | `delivered` |
-
-For an exchange order, "delivered" means the exchange happened with the
-customer. The exchanged-for goods are then on their way back to the
-merchant, so `status` may still be `inTransit` even though the delivery
-outcome is already settled.
+| `deliveryDate` is `null` and `finalDestination` is `primaryRecipient` | pending — still in play |
+| `deliveryDate` is `null` and `finalDestination` is `merchant` | declined — customer refused, parcel heading back |
+| `deliveryDate` is not `null` | delivered |
 
 ## Testing your endpoint
-
-Same approach as production — sign the raw body with your Livra API secret
-and `POST` it to your endpoint. Only the body shape differs:
 
 ```bash
 SECRET="your-secret"
@@ -213,13 +192,7 @@ curl -X POST https://your-endpoint.example.com/webhook \
   -H "Content-Type: application/json" \
   -H "X-Webhook-ID: test-$(uuidgen)" \
   -H "X-Webhook-Signature: $SIG" \
+  -H "X-Webhook-Type: advanced" \
+  -H "X-Webhook-Version: 1" \
   -d "$BODY"
 ```
-
----
-
-> 🚫 **Reminder — this page is staging only.**
-> Production (`livra.mofavo.com`) is still sending the
-> [legacy webhook format](README.md#order-status-webhooks). Do not switch
-> your integration over to anything described above until we announce that
-> the new format is live in production.
