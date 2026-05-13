@@ -39,6 +39,14 @@ webhook.
 | `driver.unreachable` | driver could not reach the recipient |
 | `driver.dated`       | delivery rescheduled to a later date |
 
+### Invoice events
+
+Emitted when the delivery partner settles the invoice associated with an order.
+
+| `event`           | Fires when                                               |
+| ----------------- | -------------------------------------------------------- |
+| `invoice.settled` | `settlementDeliverypartner` is set for the first time — fires once per order, not on re-settlements |
+
 ## Request format
 
 ```
@@ -134,6 +142,36 @@ fields. `previous` carries only the prior `missionStatus`.
 | `missionOrderId` | Internal id of the mission record (distinct from the top-level `order_id`). |
 | `orderStatus` | The shipping order's current `status` — same enum as in [`status`](#status) below. |
 | `finalDestination`, `deliveryDate` | Snapshot of the order's other tracked fields. Note: `currentPosition` is **not** included in driver-event payloads. |
+
+### Invoice event payload
+
+For `invoice.settled`, `data` carries the settlement date alongside a snapshot
+of the order's headline fields at the time of settlement. `previous` carries
+only the prior `settlementDate` (always `null` — this event fires once).
+
+```json
+{
+  "event": "invoice.settled",
+  "order_id": 1234,
+  "timestamp": "2026-05-13T10:00:00Z",
+  "data": {
+    "settlementDate": "2026-05-13",
+    "status": "delivered",
+    "finalDestination": "primaryRecipient",
+    "deliveryDate": "2026-05-10"
+  },
+  "previous": {
+    "settlementDate": null
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `settlementDate` | Date the delivery partner recorded settlement (`YYYY-MM-DD`). |
+| `status`, `finalDestination`, `deliveryDate` | Snapshot of the order's state at settlement time — same fields and values as in order event payloads. |
+
+---
 
 ## Field reference
 
