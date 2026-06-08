@@ -10,8 +10,6 @@ This document describes how to call Livra integration endpoints from your app.
 - [Update Order](#update-order)
 - [Change Request](#change-request)
 - [Order status webhooks](#order-status-webhooks)
-  - [Simple webhook](#simple-webhook)
-  - [Advanced webhook](#advanced-webhook)
 
 [← Back to documentation index](../README.md)
 
@@ -249,143 +247,14 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 When you include **`callback_link`** on [create order](#create-order), Livra calls that URL with an outbound webhook on every meaningful change to the order.
 
-There are two webhook flavours — **simple** and **advanced** — each independently versioned. You choose which one you want when you register your endpoint. The right choice depends on what you want to do with the data:
-
-| | Simple | Advanced |
-| --- | --- | --- |
-| Payload | Pre-computed `deliveryStatus`, `orderStatus`, `comment`, `settled` | Raw event with full snapshot and previous values |
-| Driver events | Surfaced via `comment` field | Dedicated `driver.*` events |
-| Invoice settlement | Surfaced via `settled` field | Dedicated `invoice.settled` event |
-| Best for | Straightforward status sync | Full auditability, custom logic, richer context |
-
 Every request carries two headers that identify exactly what you are receiving:
 
 ```
-X-Webhook-Type: simple    # or: advanced
+X-Webhook-Type: advanced
 X-Webhook-Version: 1
 ```
 
-Use them to route parsing logic if you ever handle more than one flavour or version on the same endpoint, or to guard against unexpected changes.
-
----
-
-### Simple webhook
-
-**Current version: 2** — [what changed from v1](#simple-v1-to-v2)
-
-A compact, pre-processed payload. The platform resolves `deliveryStatus`, `orderStatus`, `comment`, and `settled` for you. One payload shape covers all event types.
-
-#### Events
-
-**Order events** — fired when order state changes
-
-| Trigger | Fired when |
-| --- | --- |
-| `status.changed` | `status` changed |
-| `destination.changed` | `finalDestination` changed |
-| `position.updated` | Current position changed |
-| `delivery_date.changed` | Delivery date set or updated |
-
-**Driver events** — fired when a driver records a last-mile outcome
-
-| Trigger | `comment` value |
-| --- | --- |
-| Customer refused delivery | `declined` |
-| Driver could not reach customer | `unreachable` |
-| Delivery rescheduled | `rescheduled` |
-
-**Invoice events** — fired when the delivery partner settles the order's invoice
-
-| Trigger | `settled` value |
-| --- | --- |
-| Delivery partner settlement recorded | `true` |
-
-#### Request format
-
-```
-POST <your-callback-url>
-Content-Type: application/json
-X-Webhook-ID: <delivery-uuid>
-X-Webhook-Signature: <hmac-hex>
-X-Webhook-Type: simple
-X-Webhook-Version: 2
-```
-
-#### Payload
-
-```json
-{
-  "ok": true,
-  "timestamp": "2026-05-05T11:23:00Z",
-  "orders": [
-    {
-      "id": 1234,
-      "deliveryStatus": "pending",
-      "orderStatus": "inTransitToCustomer",
-      "comment": null,
-      "settled": false
-    }
-  ]
-}
-```
-
-`timestamp` is when the event was detected, in UTC ISO 8601. On retries it reflects the **original event time**, not the retry time.
-
-`comment` is `null` for order and invoice events. For driver events it is one of `unreachable`, `declined`, or `rescheduled`.
-
-`settled` is `false` for all events except the invoice settlement notification, where it is `true`.
-
-#### `deliveryStatus`
-
-| Value | Meaning |
-| --- | --- |
-| `pending` | The order is still in play. |
-| `delivered` | Delivered to the final recipient. |
-| `cancelled` | The order is being returned to the merchant. |
-
-#### `orderStatus`
-
-| Value | Meaning |
-| --- | --- |
-| `readyForPickUp` | Created, waiting to be collected. |
-| `inDepot` | Held at a depot. |
-| `inTransitToDepot` | On the road toward an intermediate depot. |
-| `inTransitToCustomer` | On the road toward the customer. |
-| `inTransitToMerchant` | On the road back to the merchant. |
-| `delivered` | Delivered to the customer. |
-| `returned` | Returned to the merchant. |
-| `exchange-returned` | Exchange declined; parcel returned to merchant. |
-| `exchange-completed` | Exchange completed; collected goods returned to merchant. |
-| `cancelled` | Order voided. |
-| _(other values)_ | Treat unknown values gracefully. |
-
-#### Testing your endpoint
-
-```bash
-SECRET="your-secret"
-BODY='{"ok":true,"timestamp":"2026-05-05T11:23:00Z","orders":[{"id":1234,"deliveryStatus":"pending","orderStatus":"inTransitToCustomer","comment":null,"settled":false}]}'
-SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
-
-curl -X POST https://your-endpoint.example.com/webhook \
-  -H "Content-Type: application/json" \
-  -H "X-Webhook-ID: test-$(uuidgen)" \
-  -H "X-Webhook-Signature: $SIG" \
-  -H "X-Webhook-Type: simple" \
-  -H "X-Webhook-Version: 2" \
-  -d "$BODY"
-```
-
-#### Simple v1 to v2
-
-Hooks on v1 continue to work without any changes. The differences in v2 are:
-
-| | v1 | v2 |
-| --- | --- | --- |
-| `settled` field | not present | always present (`false` by default, `true` on invoice settlement) |
-| `orderStatus` when in transit to a depot | `inTransitToCustomer` | `inTransitToDepot` |
-| Invoice settlement notification | delivered as a status snapshot, no `settled` field | delivered with `settled: true` |
-
-To migrate a registered endpoint from v1 to v2, contact the platform team.
+Use `X-Webhook-Version` to guard your parsing logic against future changes.
 
 ---
 
@@ -401,7 +270,7 @@ Full documentation: [Livra Webhooks — Advanced](webhooks-preview.md)
 
 ### Shared delivery mechanics
 
-The following applies to both simple and advanced webhooks.
+The following applies to all Livra webhooks.
 
 #### Verifying signatures
 
