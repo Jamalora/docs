@@ -114,6 +114,7 @@ mission, and `settlement` only after the delivery partner settles.
     "finalDestination": "primaryRecipient",
     "currentPosition": "Acme Depot##42 Main St##Dubai##Dubai##00000",
     "deliveryDate": null,
+    "scheduledDeliveryDate": "2026-05-10",
     "amount": 120.5,
     "isExchange": false,
     "oldOrderId": null,
@@ -174,6 +175,7 @@ mission, and `settlement` only after the delivery partner settles.
 | `finalDestination` | string | Where the parcel is ultimately headed — see [`finalDestination`](#finaldestination). A **category**, not an address. |
 | `currentPosition` | string \| null | Where the parcel currently is — `##`-separated, see [Address formats](#address-formats). |
 | `deliveryDate` | string \| null | ISO 8601 timestamp when delivered, or `null` if not delivered yet. |
+| `scheduledDeliveryDate` | string \| null | Requested/planned delivery date (`YYYY-MM-DD`), or `null` if none is set. |
 | `amount` | number \| null | Order amount (COD value). |
 | `isExchange` | boolean | `true` when this order replaces a previous one. |
 | `oldOrderId` | number \| null | The replaced order's id when `isExchange` is `true`; otherwise `null`. |
@@ -303,7 +305,8 @@ above), so you do not need to parse them.
 ### Dates
 
 `deliveryDate`, `settlement.date`, and `timestamp` are ISO 8601 in UTC.
-`deliveryDate` is `null` until delivery happens.
+`deliveryDate` is `null` until delivery happens. `scheduledDeliveryDate` is a
+plain calendar date (`YYYY-MM-DD`).
 
 ## Deriving delivery outcome
 
@@ -320,7 +323,7 @@ from `deliveryDate` and `finalDestination`:
 
 ```bash
 SECRET="your-secret"
-BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
+BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"scheduledDeliveryDate":"2026-05-10","amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
 curl -X POST https://your-endpoint.example.com/webhook \
