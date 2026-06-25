@@ -156,7 +156,8 @@ mission, and `settlement` only after the delivery partner settles.
       "destination": "Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"
     },
 
-    "settlement": null
+    "settlement": null,
+    "depotApproval": { "by": "Omar Dhifallah", "byId": "a1b2c3d4-…", "at": "2026-05-05T09:12:00Z" }
   },
   "previous": {
     "status": "inDepot",
@@ -242,6 +243,18 @@ relevant mission.
 | --- | --- | --- |
 | `settlement.date` | string | ISO 8601 timestamp the delivery partner recorded settlement. |
 
+#### `depotApproval`
+
+Who approved the order's most recent **depot drop-off** (when a driver deposits
+the order at a depot, an employee accepts it). `null` when no depot drop-off has
+been approved for the order.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `depotApproval.by` | string | Name of the approving employee. |
+| `depotApproval.byId` | string \| null | Approving employee's user id. May be `null` for drop-offs recorded before this was captured. |
+| `depotApproval.at` | string | ISO 8601 timestamp of the approval. |
+
 ### Previous values
 
 `previous` contains only the fields that changed, captured exactly at the event.
@@ -323,7 +336,7 @@ from `deliveryDate` and `finalDestination`:
 
 ```bash
 SECRET="your-secret"
-BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"scheduledDeliveryDate":"2026-05-10","amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
+BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"scheduledDeliveryDate":"2026-05-10","amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null,"depotApproval":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
 curl -X POST https://your-endpoint.example.com/webhook \
