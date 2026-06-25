@@ -216,19 +216,20 @@ Array of line items (empty array when none):
 
 #### `driver`, `depot`, and `mission`
 
-These describe a delivery leg and are `null` together when the order has no
-relevant mission.
+`driver` and `mission` describe a delivery leg; they are `null` together when
+the order has no relevant mission.
 
 - For **driver events**, they describe the mission the driver acted on.
 - For **all other events**, they describe the mission currently `inTransit`; if
   none is in transit, the most recent mission for the order.
 
-`depot` comes from that mission's depot and is `null` when the mission has none.
+`depot` is independent of the mission: it's the depot the order is **currently
+held in**, populated only while `status` is `inDepot` (and `null` otherwise).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `driver.id` / `driver.name` | number / string | Driver assigned to the mission (`null` when the mission has no driver). |
-| `depot.id` / `depot.name` | number / string | Depot referenced by the mission. |
+| `depot.id` / `depot.name` | number / string | The depot the order is currently held in. Populated while `inDepot`; `null` otherwise (or if the location can't be matched to a known depot). |
 | `mission.id` | number | Mission id. |
 | `mission.status` | string | The mission's own status (e.g. `inTransit`, `declined`) — distinct from the order `status`. |
 | `mission.originType` / `mission.destinationType` | string | `depot`, `finalRecipient`, or `system`. |
