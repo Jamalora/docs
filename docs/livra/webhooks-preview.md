@@ -157,7 +157,8 @@ mission, and `settlement` only after the delivery partner settles.
     },
 
     "settlement": null,
-    "depotApproval": { "by": "Omar Dhifallah", "byId": "a1b2c3d4-…", "at": "2026-05-05T09:12:00Z" }
+    "depotApproval": { "by": "Omar Dhifallah", "byId": "a1b2c3d4-…", "at": "2026-05-05T09:12:00Z" },
+    "lastAgentAction": { "type": "droppedOff", "by": "Omar Dhifallah", "byId": "a1b2c3d4-…", "at": "2026-05-05T09:12:00Z" }
   },
   "previous": {
     "status": "inDepot",
@@ -256,6 +257,19 @@ been approved for the order.
 | `depotApproval.byId` | string \| null | Approving employee's user id. May be `null` for drop-offs recorded before this was captured. |
 | `depotApproval.at` | string | ISO 8601 timestamp of the approval. |
 
+#### `lastAgentAction`
+
+The most recent **manual action an agent took** on the order, of any type.
+`null` when no such action has been recorded. (`depotApproval` is the drop-off
+specific case; this covers the latest action overall.)
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `lastAgentAction.type` | string | One of `droppedOff`, `declined`, `rescheduled`, `retry`, `pickedUp`, `exchanged`. |
+| `lastAgentAction.by` | string | The acting agent's name. |
+| `lastAgentAction.byId` | string \| null | The acting agent's user id. May be `null` for actions recorded before this was captured. |
+| `lastAgentAction.at` | string | ISO 8601 timestamp of the action. |
+
 ### Previous values
 
 `previous` contains only the fields that changed, captured exactly at the event.
@@ -337,7 +351,7 @@ from `deliveryDate` and `finalDestination`:
 
 ```bash
 SECRET="your-secret"
-BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"scheduledDeliveryDate":"2026-05-10","amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null,"depotApproval":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
+BODY='{"event":"status.changed","order_id":1234,"timestamp":"2026-05-05T11:23:00Z","data":{"status":"inTransit","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null,"scheduledDeliveryDate":"2026-05-10","amount":120.5,"isExchange":false,"oldOrderId":null,"customer":{"name":"Tarek M.","phone":"55916219","phone2":null,"address":{"street":"12 Rue de Carthage","zone":"Beni Khalled","city":"Beni Khalled","state":"Nabeul","zipcode":"8021"},"deliveryInstructions":null},"merchant":{"id":153,"name":"Promo Shop"},"sender":{"id":332,"name":"Promo Shop Sender","address":{"street":"Centre Ville","city":"Ksar Hellal","state":"Monastir"}},"products":[{"name":"Hoodie","quantity":1,"price":37.0}],"driver":{"id":165,"name":"Ala B."},"depot":null,"mission":{"id":1742169,"status":"inTransit","originType":"depot","origin":"Sousse Hub##Soukra##Ksar Hellal##Monastir##5070","destinationType":"finalRecipient","destination":"Tarek M.##12 Rue de Carthage##Beni Khalled##Nabeul##8021"},"settlement":null,"depotApproval":null,"lastAgentAction":null},"previous":{"status":"inDepot","finalDestination":"primaryRecipient","currentPosition":"Acme Depot##42 Main St##Dubai##Dubai##00000","deliveryDate":null}}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
 curl -X POST https://your-endpoint.example.com/webhook \
