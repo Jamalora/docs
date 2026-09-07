@@ -126,7 +126,8 @@ Use these headers for all Livra integration endpoints:
 
 ### Success
 
-- **201**: `{ "orderId": <number> }`
+- **201**: `{ "orderId": <number>, "hash": "<string>" }`
+  - `hash` is the order-slip QR hash. A slip's QR code must encode `"<orderId>#<hash>"` to be accepted by depot scanners. The hash covers the order's content (recipient, products, amount, …), so after any order update the previous hash is stale — always use the latest one returned.
 
 ### Errors
 
@@ -177,7 +178,8 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 ### Success
 
-- **200**: `{ "orderId": <number> }`
+- **200**: `{ "orderId": <number>, "hash": "<string>" }`
+  - `hash` is the recomputed order-slip QR hash after the update (see Create Order). Any slip printed with an older hash must be reprinted.
 
 ### Errors
 
