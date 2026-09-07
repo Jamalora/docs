@@ -8,6 +8,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Create Merchant](#create-merchant)
 - [Create Order](#create-order)
 - [Update Order](#update-order)
+- [Order Hash](#order-hash)
 - [Change Request](#change-request)
 - [Order status webhooks](#order-status-webhooks)
 
@@ -187,6 +188,37 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
   - `order_not_found`
   - `order_update_not_permitted`
   - plus all create-order 400 errors
+- **401** missing/invalid auth headers/signature
+- **500** internal error
+
+## Order Hash
+
+Use this to fetch the current **order-slip QR hash** for an order — for example right before printing (or reprinting) a delivery slip. The QR must encode `"<orderId>#<hash>"`. The hash covers the order's content, so it changes whenever the order changes; a slip carrying an outdated hash is rejected at scan time.
+
+Create Order and Update Order already return the same `hash` in their responses; this endpoint is for when you need it again later for an existing order.
+
+- **URL:** `https://livra.mofavo.com/order_hash`
+- **Method:** `POST`
+
+### Request body
+
+```json
+{
+  "orderId": 1234
+}
+```
+
+### Rules
+
+- `orderId` is required and must be a positive integer.
+
+### Success
+
+- **200**: `{ "orderId": <number>, "hash": "<string>" }`
+
+### Errors
+
+- **400** `order_not_found` or validation errors
 - **401** missing/invalid auth headers/signature
 - **500** internal error
 
