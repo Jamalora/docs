@@ -30,8 +30,8 @@ Two secrets from us. Ask `ops@mofavo.com` if you don't have them:
 
 | Thing | Looks like | Where it goes |
 | --- | --- | --- |
-| API key | `pk_live_8f2c…` | the `x-api-key` header |
-| API secret | `sk_live_1a9d…` | **never sent** — used to compute `x-signature` |
+| API key | an opaque string, e.g. `<apiKey>` | the `x-api-key` header |
+| API secret | an opaque string, e.g. `<apiSecret>` | **never sent** — used to compute `x-signature` |
 
 **Never put the secret in a header, a URL, or the body.** It only ever goes into the
 HMAC calculation described in [section 3](#3-how-to-build-x-signature).
@@ -134,8 +134,8 @@ curl -X POST https://external-api.livra.tn/partner_accept_in_depot \
 ```js
 import crypto from "node:crypto";
 
-const API_KEY = process.env.LIVRA_API_KEY;
-const API_SECRET = process.env.LIVRA_API_SECRET;
+const API_KEY = process.env.API_KEY;
+const API_SECRET = process.env.API_SECRET;
 
 export async function acceptInDepot(orderId, depotId) {
   const body = JSON.stringify({ orderId, depotId });
@@ -185,8 +185,8 @@ def accept_in_depot(order_id: int, depot_id: int):
 
 ```php
 <?php
-$apiKey    = getenv('LIVRA_API_KEY');
-$apiSecret = getenv('LIVRA_API_SECRET');
+$apiKey    = getenv('API_KEY');
+$apiSecret = getenv('API_SECRET');
 
 $body = json_encode(['orderId' => 1234, 'depotId' => 7]);
 $signature = hash_hmac('sha256', $body, $apiSecret);
