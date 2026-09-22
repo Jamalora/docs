@@ -14,6 +14,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
 - [2. The request](#2-the-request)
+  - [Who approved it — `employeeId` and `employeeName`](#who-approved-it--employeeid-and-employeename)
 - [3. How to build `x-signature`](#3-how-to-build-x-signature)
 - [4. Copy-paste examples](#4-copy-paste-examples)
 - [5. The success response](#5-the-success-response)
@@ -63,19 +64,45 @@ for every merchant, so there is no single merchant to scope it to.)
 ```json
 {
   "orderId": 1234,
-  "depotId": 7
+  "depotId": 7,
+  "employeeId": 482,
+  "employeeName": "Mehdi Toumi"
 }
 ```
 
-Two fields. That is the whole body.
+Two required fields, two optional ones.
 
 | Field | Type | Rules |
 | --- | --- | --- |
 | `orderId` | number | Required. Positive whole number. The order you scanned. |
 | `depotId` | number | Required. Positive whole number. **One of your own depots.** |
+| `employeeId` | number | Optional. The employee who approved the accept — see below. |
+| `employeeName` | string | Optional. The name to show if we don't know that `employeeId`. |
 
-- Both must be **numbers**, not strings. `"1234"` is wrong. `1234` is right.
+- Ids must be **numbers**, not strings. `"1234"` is wrong. `1234` is right.
 - Extra fields you add are ignored, they don't break anything.
+
+### Who approved it — `employeeId` and `employeeName`
+
+Without these, the order's timeline says the accept came from your platform. With them, it
+names the person — which is what an agent looking at a parcel actually needs.
+
+**`employeeId` is the id we gave you.** It is the same `agentId` we send you on the
+settlement webhooks. When we recognise it, we display **our** name for that employee and
+ignore `employeeName`. When we don't, we fall back to `employeeName`. With neither, the
+accept is attributed to your platform.
+
+| What you send | What the timeline shows |
+| --- | --- |
+| `employeeId` we recognise | the name **we** hold, e.g. `Sarra Ben Ali (Livra)` |
+| an id we don't + `employeeName` | the name **you** sent, e.g. `Mehdi Toumi (Livra)` |
+| neither | `Partner API (Livra)` |
+
+> **Neither field can ever fail your call.** An id we don't recognise is not an error — the
+> parcel is still accepted. Only sending them with the *wrong type* (a string id, a numeric
+> name) is a `400`.
+
+**Send both on every call.** Then you are covered whichever side is missing the employee.
 
 ## 3. How to build `x-signature`
 
@@ -260,6 +287,8 @@ to do for each one.
 | --- | --- | --- | --- |
 | **400** | `Missing or invalid field: orderId (must be a positive integer)` | `orderId` missing, a string, zero, or negative. | Send a positive number. |
 | **400** | `Missing or invalid field: depotId (must be a positive integer)` | Same, for `depotId`. | Send a positive number. |
+| **400** | `Missing or invalid field: employeeId (must be a positive integer)` | `employeeId` was a string, zero, or negative. | Send a positive number, or leave it out. An id we don't recognise is fine. |
+| **400** | `Missing or invalid field: employeeName (must be a string)` | `employeeName` wasn't a string. | Send a string, or leave it out. |
 | **400** | `Invalid payload` | The body wasn't a JSON object. | Send `{"orderId":…,"depotId":…}`. |
 
 ### The parcel can't be accepted
@@ -321,7 +350,8 @@ waited too long). You can never double-accept a parcel.
 
 Each call writes an entry to the order's internal timeline, exactly like a scan on the
 depot console does. Identical repeat attempts within **60 seconds** are collapsed into a
-single entry. These entries are visible to operations only, never to merchants.
+single entry — **attempts by two different employees are never collapsed**, so nobody's
+scan disappears. These entries are visible to operations only, never to merchants.
 
 So don't be surprised if your call count and our timeline entry count differ — that's the
 60-second collapsing.
@@ -331,6 +361,7 @@ So don't be surprised if your call count and our timeline entry count differ —
 - [ ] The signature is computed over the **exact body string** you send.
 - [ ] `orderId` and `depotId` are sent as **numbers**, not strings.
 - [ ] You are **not** sending a partner id in the body (we ignore it; it comes from your key).
+- [ ] You send `employeeId` (and `employeeName` as a fallback), so the timeline names a person.
 - [ ] `orderAlreadyInThisDepot` is handled as a **success**.
 - [ ] `409 accept_in_progress` retries after a short wait.
 - [ ] Nothing else is retried automatically.

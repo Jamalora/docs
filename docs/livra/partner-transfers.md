@@ -20,6 +20,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [1. What you need before you start](#1-what-you-need-before-you-start)
 - [2. The idea in one minute](#2-the-idea-in-one-minute)
 - [3. The request](#3-the-request)
+  - [Who did it — `employeeId` and `employeeName`](#who-did-it--employeeid-and-employeename)
 - [4. How to build `x-signature`](#4-how-to-build-x-signature)
 - [5. Copy-paste examples](#5-copy-paste-examples)
 - [6. `add` — put parcels on a transfer](#6-add--put-parcels-on-a-transfer)
@@ -140,6 +141,39 @@ An action we don't know gets a `400` listing the ones we do.
 > fields, so if the action lived in the path, a signed "read this transfer" request could
 > be replayed as "cancel this transfer". Keeping it in the signed body makes every request
 > bound to one operation.
+
+### Who did it — `employeeId` and `employeeName`
+
+Every action accepts two optional fields. The ones that write (`add`, `dispatch`,
+`remove`, `cancel`) put the result on the parcel's timeline, so an agent reading an order
+in our console sees **a person**, not "some API call":
+
+```jsonc
+{
+  "employeeId": 482,             // optional — OUR id for your employee
+  "employeeName": "Mehdi Toumi"  // optional — the name to show if we don't know that id
+}
+```
+
+**`employeeId` is the id we gave you.** It is the same `agentId` we send you on the
+settlement webhooks. When we recognise it, we display **our** name for that employee,
+attribute the transfer to their account exactly as if they had used our console, and
+ignore `employeeName`.
+
+**`employeeName` is the fallback.** We use it when the id matches nobody on our side, or
+when you send no id at all. It is trimmed to one line and cut at 80 characters.
+
+| What you send | What the timeline shows |
+| --- | --- |
+| `employeeId` we recognise | the name **we** hold for that employee, e.g. `Sarra Ben Ali (Livra)` |
+| an id we don't + `employeeName` | the name **you** sent, e.g. `Mehdi Toumi (Livra)` |
+| neither | `Partner API (Livra)` |
+
+> **Neither field can ever fail your call.** An id we don't recognise is not an error —
+> the parcels still load, the truck still leaves. Only sending them with the *wrong type*
+> (a string id, a numeric name) is a `400`.
+
+**Send both on every call.** Then you are covered whichever side is missing the employee.
 
 ## 4. How to build `x-signature`
 
@@ -312,7 +346,9 @@ Creates the transfer if it doesn't exist yet, loads the parcels, and optionally 
   "type": "delivery",          // required — "delivery" or "returned"
   "orderIds": [1234, 1235],    // required — 1 to 200 order ids
   "dispatch": false,           // optional — true sends the truck at the end of this call
-  "driverId": 42               // optional — defaults to the driver configured for this route
+  "driverId": 42,              // optional — defaults to the driver configured for this route
+  "employeeId": 482,           // optional — who loaded it (see section 3)
+  "employeeName": "Mehdi Toumi" // optional — fallback name if we don't know that id
 }
 ```
 
@@ -598,6 +634,8 @@ These fail the whole call:
 | **400** | `transfer_not_found` | Unknown `transferId`. Check the id. |
 | **400** | `transfer_closed` | The transfer already left, finished, or was cancelled. Start a new one. |
 | **400** | `Missing field: orderIds (or pass all: true)` | `remove` needs to be told what to remove. |
+| **400** | `Invalid field: employeeId (must be a positive integer)` | Send the id as a number, e.g. `482`, not `"482"`. An id we don't recognise is fine — see [section 3](#who-did-it--employeeid-and-employeename). |
+| **400** | `Invalid field: employeeName (must be a string)` | Send a string, or leave the field out. |
 
 ### Our side
 
@@ -674,6 +712,8 @@ So don't be surprised if your call count and our timeline entry count differ.
       included**.
 - [ ] All ids are sent as **numbers**, not strings.
 - [ ] You are **not** sending a partner id (we ignore it; it comes from your key).
+- [ ] You send `employeeId` (and `employeeName` as a fallback) on every writing call, so
+      the timeline names a person.
 - [ ] You read `added` / `refused` / `parcels`, not just `ok`.
 - [ ] `already_added` is treated as **success**, not an error.
 - [ ] `409 transfer_in_progress` retries after a short wait. Nothing else retries
