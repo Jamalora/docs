@@ -161,17 +161,22 @@ attribute the transfer to their account exactly as if they had used our console,
 ignore `employeeName`.
 
 **`employeeName` is the fallback.** We use it when the id matches nobody on our side, or
-when you send no id at all. It is trimmed to one line and cut at 80 characters.
+when you send no id at all. It is trimmed to one line and cut at 80 characters. A name
+that is empty or only spaces counts as no name at all.
 
 | What you send | What the timeline shows |
 | --- | --- |
 | `employeeId` we recognise | the name **we** hold for that employee, e.g. `Sarra Ben Ali (Livra)` |
 | an id we don't + `employeeName` | the name **you** sent, e.g. `Mehdi Toumi (Livra)` |
-| neither | `Partner API (Livra)` |
+| neither, or a blank name | `Partner API (Livra)` |
 
 > **Neither field can ever fail your call.** An id we don't recognise is not an error —
 > the parcels still load, the truck still leaves. Only sending them with the *wrong type*
 > (a string id, a numeric name) is a `400`.
+>
+> The same holds on our side: if our employee directory is briefly unreachable the
+> transfer is still created and the parcels still load — it is simply attributed to your
+> platform, `Partner API (Livra)`, instead of to the person. Never a reason to retry.
 
 **Send both on every call.** Then you are covered whichever side is missing the employee.
 

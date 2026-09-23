@@ -92,15 +92,24 @@ settlement webhooks. When we recognise it, we display **our** name for that empl
 ignore `employeeName`. When we don't, we fall back to `employeeName`. With neither, the
 accept is attributed to your platform.
 
+`employeeName` is trimmed to one line and cut at 80 characters. A name that is empty or
+only spaces counts as no name at all — it is not an error, the accept just falls back to
+the line below it in this table.
+
 | What you send | What the timeline shows |
 | --- | --- |
 | `employeeId` we recognise | the name **we** hold, e.g. `Sarra Ben Ali (Livra)` |
 | an id we don't + `employeeName` | the name **you** sent, e.g. `Mehdi Toumi (Livra)` |
-| neither | `Partner API (Livra)` |
+| neither, or a blank name | `Partner API (Livra)` |
 
 > **Neither field can ever fail your call.** An id we don't recognise is not an error — the
 > parcel is still accepted. Only sending them with the *wrong type* (a string id, a numeric
 > name) is a `400`.
+>
+> The same holds on our side: if our employee directory is briefly unreachable we accept
+> the parcel anyway and label it `Partner API (Livra)`. You may therefore see that label
+> occasionally even on a call that named someone we know. It is never a reason to retry —
+> the accept already happened.
 
 **Send both on every call.** Then you are covered whichever side is missing the employee.
 
@@ -350,8 +359,10 @@ waited too long). You can never double-accept a parcel.
 
 Each call writes an entry to the order's internal timeline, exactly like a scan on the
 depot console does. Identical repeat attempts within **60 seconds** are collapsed into a
-single entry — **attempts by two different employees are never collapsed**, so nobody's
-scan disappears. These entries are visible to operations only, never to merchants.
+single entry — **attempts by two different employees we recognise are never collapsed**,
+so nobody's scan disappears. (Two attempts naming only an `employeeName`, with no id we
+recognise, can still collapse into one: send `employeeId` if you need every scan kept
+apart.) These entries are visible to operations only, never to merchants.
 
 So don't be surprised if your call count and our timeline entry count differ — that's the
 60-second collapsing.
