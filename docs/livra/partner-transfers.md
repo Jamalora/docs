@@ -24,6 +24,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [4. How to build `x-signature`](#4-how-to-build-x-signature)
 - [5. Copy-paste examples](#5-copy-paste-examples)
 - [6. `add` — put parcels on a transfer](#6-add--put-parcels-on-a-transfer)
+  - [Wrong destination depot](#wrong-destination-depot)
 - [7. `dispatch` — send the truck](#7-dispatch--send-the-truck)
 - [8. `status` — look at a transfer or a parcel](#8-status--look-at-a-transfer-or-a-parcel)
 - [9. `list` — your recent transfers](#9-list--your-recent-transfers)
@@ -352,6 +353,7 @@ Creates the transfer if it doesn't exist yet, loads the parcels, and optionally 
   "orderIds": [1234, 1235],    // required — 1 to 200 order ids
   "dispatch": false,           // optional — true sends the truck at the end of this call
   "driverId": 42,              // optional — defaults to the driver configured for this route
+  "blockWrongDestination": true, // optional, default true — see "Wrong destination depot" below
   "employeeId": 482,           // optional — who loaded it (see section 3)
   "employeeName": "Mehdi Toumi" // optional — fallback name if we don't know that id
 }
@@ -378,6 +380,7 @@ All ids are **numbers**, not strings. `"1234"` is wrong, `1234` is right.
   "alreadyAdded": 1,           // were already on it
   "needsRepair": 0,            // couldn't be loaded — their record disagrees, see section 12
   "refused": 1,                // couldn't be loaded — see section 12
+  "wrongDestination": 0,       // loaded although routing sends them elsewhere (blockWrongDestination: false)
   "dispatched": 0,             // 0 unless you passed "dispatch": true
 
   "parcels": [
@@ -385,6 +388,7 @@ All ids are **numbers**, not strings. `"1234"` is wrong, `1234` is right.
     { "orderId": 1235, "status": "already_added", "missionId": 55499, "missionStatus": "ready" },
     { "orderId": 1236, "status": "refused", "error": "wrong_destination_depot",
       "category": "terminal", "retryable": false,
+      "reason": "Order 1236 is routed to Sfax, not to this transfer's destination Sousse",
       "correctDestinationDepot": { "id": 9, "name": "Sfax" } }
   ]
 }
@@ -394,7 +398,7 @@ All ids are **numbers**, not strings. `"1234"` is wrong, `1234` is right.
 
 | parcel `status` | Meaning | What to do |
 | --- | --- | --- |
-| `added` | On the transfer. | Nothing. |
+| `added` | On the transfer. If it carries `"warning": "wrong_destination_depot"`, it was loaded although routing sends it to `correctDestinationDepot` — only with `blockWrongDestination: false`. | Nothing — or reroute it at the destination. |
 | `already_added` | Was already on it — you re-sent it, or retried. | Nothing. **This is success.** |
 | `needs_repair` | The parcel is fine but its record disagrees with the transfer. **Not loaded.** | [Section 12](#12-why-a-parcel-was-not-loaded). |
 | `refused` | Not loaded. `error` says why. | [Section 12](#12-why-a-parcel-was-not-loaded). |
@@ -407,19 +411,53 @@ All ids are **numbers**, not strings. `"1234"` is wrong, `1234` is right.
 > **Always read `added` / `refused` / `parcels`, not just `ok`.** This is the single most
 > common mistake on this endpoint.
 
+**One exception: a parcel that belongs to another delivery partner fails the whole call.**
+You get `403` and nothing is created or loaded — not even your own parcels in the same
+call. The response says which ones:
+
+```jsonc
+{ "ok": false, "error": "unauthorizedPartnerForRequest", "category": "auth", "retryable": false,
+  "reason": "Order 1236 belongs to another delivery partner", "orderIds": [1236] }
+```
+
+Drop those ids and send the rest again.
+
+### Wrong destination depot
+
+We know which depot each parcel should go to next from the source (zone routing). When
+that isn't this transfer's destination, `blockWrongDestination` decides what happens:
+
+| `blockWrongDestination` | What happens to the parcel |
+| --- | --- |
+| `true` (default) | **Refused**: `"error": "wrong_destination_depot"`, a `reason`, and `correctDestinationDepot`. |
+| `false` | **Loaded anyway**: `"status": "added"` with `"warning": "wrong_destination_depot"`, the same `reason` and `correctDestinationDepot`. Counted in `wrongDestination`. |
+
+```jsonc
+{ "orderId": 1236, "status": "added", "missionId": 55502, "missionStatus": "ready",
+  "warning": "wrong_destination_depot",
+  "reason": "Order 1236 is routed to Sfax, not to this transfer's destination Sousse",
+  "correctDestinationDepot": { "id": 9, "name": "Sfax" } }
+```
+
+A route with no zone routing configured on our side is never "wrong" — the parcel is
+simply added.
+
 **`dispatch: true` sends the whole transfer**, not only the parcels in this call. If an
 earlier batch left parcels on it, they leave too — the truck goes with everything on it.
-To send only some of them, leave `dispatch` out and use
-[`dispatch`](#7-dispatch--send-the-truck) with an explicit list.
+To keep some behind, [`remove`](#10-remove--take-parcels-back-off) them first.
 
 ## 7. `dispatch` — send the truck
 
-Parcels go in transit, the transfer goes `in_progress`, and the driver is on the road.
+Everything loaded on the transfer goes in transit, the transfer goes `in_progress`, and
+the driver is on the road.
 
 ```jsonc
-{ "action": "dispatch", "transferId": "4f1c8a02-…" }                     // everything loaded
-{ "action": "dispatch", "transferId": "4f1c8a02-…", "orderIds": [1234] } // or just these
+{ "action": "dispatch", "transferId": "4f1c8a02-…" }
 ```
+
+**By `transferId` only — the whole truck leaves.** There is no partial dispatch: sending
+`orderIds` returns `400`. To keep parcels behind, [`remove`](#10-remove--take-parcels-back-off)
+them first.
 
 ### Response — HTTP 200
 
@@ -428,9 +466,8 @@ Parcels go in transit, the transfer goes `in_progress`, and the driver is on the
   "ok": true,
   "transferId": "4f1c8a02-…",
   "status": "in_progress",
-  "dispatched": 2,          // parcels that left
-  "skipped": 0,             // parcels you asked for that were not loaded on this transfer
-  "orderIds": [1234, 1235]
+  "dispatched": 2,          // how many parcels left
+  "orderIds": [1234, 1235]  // which ones
 }
 ```
 
@@ -449,6 +486,9 @@ Two ways to ask. Use `orderId` when you've lost track of a parcel.
 { "action": "status", "orderId": 1234 }              // which transfer is this parcel on?
 ```
 
+When you ask by `orderId`, `parcels` contains **that parcel only** — you get the transfer
+it is on, not the rest of the truck.
+
 ### Response — HTTP 200
 
 ```jsonc
@@ -462,7 +502,6 @@ Two ways to ask. Use `orderId` when you've lost track of a parcel.
   "destination": { "id": 7, "name": "Sousse" },
   "driver":      { "id": 42, "name": "Ali Ben Salah" },
   "createdAt": "2026-09-11T10:22:03.114Z",
-  "settled": false,        // true = this call is what completed the transfer
   "prunedLines": 0,        // parcels this call dropped, because they moved on elsewhere
   "parcels": [
     { "orderId": 1234, "missionId": 55501, "status": "inTransit",
@@ -483,8 +522,8 @@ A parcel that has never been on a transfer is an **answer, not an error**:
 Two things worth knowing:
 
 - **Reading a transfer can close it.** If every parcel on it has meanwhile been accepted at
-  the destination, this call completes it and answers `"status": "completed"` with
-  `"settled": true`. Nothing is lost — it just means your call is what noticed.
+  the destination, this call completes it and answers `"status": "completed"`. Nothing is
+  lost — it just means your call is what noticed.
 - **A parcel that moved on elsewhere drops off a transfer that hasn't left yet**, and
   `prunedLines` counts how many. Usually that means the parcel was checked back into the
   source depot after it was loaded — see [rule 1 in section 14](#1-check-a-parcel-in-before-you-transfer-it-out--never-after).
@@ -564,21 +603,23 @@ already left, or already finished, answers `transfer_closed`.
 
 ## 12. Why a parcel was not loaded
 
-These come back **per parcel**, inside `parcels[]`. They never fail the whole call.
+These come back **per parcel**, inside `parcels[]`. They never fail the whole call — the
+one exception is a parcel belonging to another partner (see [section 6](#6-add--put-parcels-on-a-transfer)).
 
 Each one carries `category` and `retryable`, so you can branch on two fields instead of
-matching every code by hand.
+matching every code by hand, plus a `reason` sentence you can show the agent holding the
+scanner.
 
 | `error` | `category` | What it means | What to do |
 | --- | --- | --- | --- |
 | `already_delivered_or_returned` | `terminal` | This parcel's journey is over. | Don't retry. |
 | `wrong_final_destination` | `terminal` | A return sent on `"delivery"`, or the other way round. | Send it on the other `type`. |
-| `wrong_destination_depot` | `terminal` | Routing says this parcel goes somewhere else. Carries `correctDestinationDepot`. | Put it on a transfer to that depot. |
+| `wrong_destination_depot` | `terminal` | Routing says this parcel goes somewhere else. Carries `correctDestinationDepot`. Only when `blockWrongDestination` is `true` (the default). | Put it on a transfer to that depot — or send `blockWrongDestination: false` to load it anyway. |
 | `active_last_mile_mission` | `terminal` | It's already out for final delivery. | Recall that mission, then retry. |
 | `active_last_mile_runsheet` | `terminal` | It's loaded on a last-mile sheet. | Take it off there, then retry. |
 | `unresolved_qc_ticket` | `repairable` | Returns flow only: an open quality-check ticket. | Close the ticket, then retry. |
 | `order_not_found` | `terminal` | No order with that id. | Check the id. |
-| `unauthorizedPartnerForRequest` | `terminal` | That parcel belongs to another delivery partner. | Don't retry. Not your parcel. |
+| `unauthorizedPartnerForRequest` | `terminal` | That parcel belongs to another delivery partner. Normally the whole call fails with `403` first (see [section 6](#6-add--put-parcels-on-a-transfer)). | Don't retry. Not your parcel. |
 
 ### `needs_repair`
 
@@ -625,7 +666,7 @@ These fail the whole call:
 | **401** | `Invalid api key` | Key is wrong, or disabled. | Check the key. |
 | **401** | `Invalid signature` | Your HMAC doesn't match. **99% of the time you signed a different string than you sent.** | Re-read [section 4](#4-how-to-build-x-signature). |
 | **403** | `partner_scope_not_configured` | Your key is valid but isn't enabled for partner endpoints. | Email `ops@mofavo.com`. Nothing to fix in code. |
-| **403** | `unauthorizedPartnerForRequest` | That transfer belongs to another delivery partner. | Don't retry. |
+| **403** | `unauthorizedPartnerForRequest` | The transfer — or an order you sent in `add`, `remove` or `status` — belongs to another delivery partner. `reason` says which; `add` and `remove` also list the foreign `orderIds`. | Don't retry. Drop those ids. |
 
 ### Your request was wrong
 
@@ -637,6 +678,8 @@ These fail the whole call:
 | **400** | `depot_not_found` | A depot id isn't one of yours, or doesn't exist. Check your depot mapping. |
 | **400** | `driver_not_found` | `driverId` isn't an active transfer driver of yours. Leave it out to use the route's driver. |
 | **400** | `transfer_not_found` | Unknown `transferId`. Check the id. |
+| **400** | `Invalid field: orderIds (dispatch sends the whole transfer; …)` | `dispatch` takes only `transferId`. `remove` the parcels that should stay, then dispatch. |
+| **400** | `Invalid field: blockWrongDestination (must be a boolean)` | Send `true` or `false`, or leave it out. |
 | **400** | `transfer_closed` | The transfer already left, finished, or was cancelled. Start a new one. |
 | **400** | `Missing field: orderIds (or pass all: true)` | `remove` needs to be told what to remove. |
 | **400** | `Invalid field: employeeId (must be a positive integer)` | Send the id as a number, e.g. `482`, not `"482"`. An id we don't recognise is fine — see [section 3](#who-did-it--employeeid-and-employeename). |
@@ -668,8 +711,8 @@ a transfer ten minutes ago.
 
 So if you run accepts as a reconciliation job, **skip parcels that are already on a
 transfer** (`status` with `orderId` tells you). A parcel unloaded this way isn't lost: it
-drops off the transfer on the next read (`prunedLines`), and `dispatch` reports it as
-`skipped` instead of sending a parcel that isn't on the truck.
+drops off the transfer on the next read (`prunedLines`), and `dispatch` leaves it behind
+instead of sending a parcel that isn't on the truck.
 
 ### 2. Repeating a call is always safe — and each repeat means something
 
@@ -696,9 +739,12 @@ if (status === 409) {
 } else {
   // 200: the CALL worked. Now look at the parcels.
   for (const parcel of data.parcels) {
-    if (parcel.status === "added" || parcel.status === "already_added") markLoaded(parcel.orderId);
+    if (parcel.status === "added" || parcel.status === "already_added") {
+      markLoaded(parcel.orderId);
+      if (parcel.warning) showParcelWarning(parcel.orderId, parcel.reason); // wrong depot, loaded anyway
+    }
     else if (parcel.retryable) queueForLater(parcel.orderId);
-    else showParcelProblem(parcel.orderId, parcel.error ?? parcel.repairs);
+    else showParcelProblem(parcel.orderId, parcel.reason ?? parcel.repairs);
   }
 }
 ```
@@ -736,6 +782,7 @@ So don't be surprised if your call count and our timeline entry count differ.
 | `401 Invalid signature` on every call | Your HTTP library re-serialized the body after you signed it. Send the raw string. In Python use `data=`, not `json=`. |
 | `401 Invalid signature` after you added `action` | You built and signed the body first, then added the field. Build it once, with `action` in it. |
 | Agents told "everything loaded" when it didn't | You checked `ok` and stopped. Read `added` and `parcels`. |
+| `403 unauthorizedPartnerForRequest` on an `add` and nothing loaded | One of the ids belongs to another partner. `orderIds` in the response lists them; drop them and re-send. |
 | Parcels vanish off a transfer before dispatch | Your accept job is re-accepting them at the source depot. See [rule 1](#1-check-a-parcel-in-before-you-transfer-it-out--never-after). |
 | Two trucks for the same route | Not possible through this API — `add` reuses the open transfer. If you see two, one was built on the console. |
 | `400 no_route_driver` | No driver configured for that source → destination pair. Setup on our side; email us. |
