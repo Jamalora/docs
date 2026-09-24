@@ -12,11 +12,15 @@ This document describes how to call Livra integration endpoints from your app.
 - [Change Request](#change-request)
 - [Order status webhooks](#order-status-webhooks)
 - [Accept In Depot (delivery partners)](partner-accept-in-depot.md)
+- [Transfers Between Depots (delivery partners)](partner-transfers.md)
 
 [← Back to documentation index](../README.md)
 
-> **Are you a delivery partner checking parcels into your own depots?**
-> That endpoint has its own page: [Accept In Depot](partner-accept-in-depot.md).
+> **Are you a delivery partner working with your own depots?**
+> Those endpoints have their own pages:
+> [Accept In Depot](partner-accept-in-depot.md) to check a parcel in when a truck
+> arrives, and [Transfers Between Depots](partner-transfers.md) to send parcels on to
+> the next depot.
 
 ## Shared authentication headers
 
