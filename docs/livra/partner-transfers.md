@@ -571,6 +571,9 @@ Only works while the transfer is still being loaded.
   everything" form, so no call can empty a truck someone else is still loading. To call
   off a whole transfer, use [`cancel`](#11-cancel--call-the-whole-thing-off).
 - Removing a parcel that isn't on the transfer is not an error: `"removed": 0`.
+- A removed parcel's leg on that transfer is **closed** (marked failed) and the order's
+  timeline says so. Nothing is deleted, and the parcel can be put on a transfer again with
+  `add`.
 - After the truck has left you get `transfer_closed`. A parcel on the road isn't ours to
   unload over an API — that's a console job.
 
