@@ -568,7 +568,6 @@ Only works while the transfer is still being loaded.
 
 ```jsonc
 { "action": "remove", "transferId": "4f1c8a02-…", "orderIds": [1234] }
-{ "action": "remove", "transferId": "4f1c8a02-…", "all": true }
 ```
 
 ### Response — HTTP 200
@@ -577,9 +576,9 @@ Only works while the transfer is still being loaded.
 { "ok": true, "transferId": "4f1c8a02-…", "removed": 1, "orderIds": [1234] }
 ```
 
-- Pass **either** `orderIds` **or** `all: true`, never both. Leaving both out is a `400` —
-  emptying a transfer is something you say on purpose, not something that happens when a
-  field goes missing.
+- `orderIds` is **required** — name the parcels to take off. There is no "remove
+  everything" form, so no call can empty a truck someone else is still loading. To call
+  off a whole transfer, use [`cancel`](#11-cancel--call-the-whole-thing-off).
 - Removing a parcel that isn't on the transfer is not an error: `"removed": 0`.
 - After the truck has left you get `transfer_closed`. A parcel on the road isn't ours to
   unload over an API — that's a console job.
@@ -681,7 +680,7 @@ These fail the whole call:
 | **400** | `Invalid field: orderIds (dispatch sends the whole transfer; …)` | `dispatch` takes only `transferId`. `remove` the parcels that should stay, then dispatch. |
 | **400** | `Invalid field: blockWrongDestination (must be a boolean)` | Send `true` or `false`, or leave it out. |
 | **400** | `transfer_closed` | The transfer already left, finished, or was cancelled. Start a new one. |
-| **400** | `Missing field: orderIds (or pass all: true)` | `remove` needs to be told what to remove. |
+| **400** | `Missing or invalid field: orderIds (must be a non-empty array of order ids)` | `remove` needs the parcels to take off. To drop the whole transfer, use `cancel`. |
 | **400** | `Invalid field: employeeId (must be a positive integer)` | Send the id as a number, e.g. `482`, not `"482"`. An id we don't recognise is fine — see [section 3](#who-did-it--employeeid-and-employeename). |
 | **400** | `Invalid field: employeeName (must be a string)` | Send a string, or leave the field out. |
 
