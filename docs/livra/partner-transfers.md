@@ -26,7 +26,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [6. `add` — put parcels on a transfer](#6-add--put-parcels-on-a-transfer)
   - [Wrong destination depot](#wrong-destination-depot)
 - [7. `dispatch` — send the truck](#7-dispatch--send-the-truck)
-- [8. `status` — look at a transfer or a parcel](#8-status--look-at-a-transfer-or-a-parcel)
+- [8. `status` — look at a transfer](#8-status--look-at-a-transfer)
 - [9. `list` — your recent transfers](#9-list--your-recent-transfers)
 - [10. `remove` — take parcels back off](#10-remove--take-parcels-back-off)
 - [11. `cancel` — call the whole thing off](#11-cancel--call-the-whole-thing-off)
@@ -130,7 +130,7 @@ needs:
 | --- | --- | --- |
 | `add` | put parcels on a transfer (and optionally send it) | [6](#6-add--put-parcels-on-a-transfer) |
 | `dispatch` | send the truck | [7](#7-dispatch--send-the-truck) |
-| `status` | look at a transfer, or find the one a parcel is on | [8](#8-status--look-at-a-transfer-or-a-parcel) |
+| `status` | look at a transfer and the parcels on it | [8](#8-status--look-at-a-transfer) |
 | `list` | your recent transfers | [9](#9-list--your-recent-transfers) |
 | `remove` | take parcels back off | [10](#10-remove--take-parcels-back-off) |
 | `cancel` | call the whole transfer off | [11](#11-cancel--call-the-whole-thing-off) |
@@ -477,17 +477,14 @@ already `in_progress`. That means the first call landed — it is success, not a
 Dispatching an empty transfer is also `"dispatched": 0`, not an error. If you expected
 parcels, check the count.
 
-## 8. `status` — look at a transfer or a parcel
+## 8. `status` — look at a transfer
 
-Two ways to ask. Use `orderId` when you've lost track of a parcel.
+One transfer and everything on it, **by `transferId` only** — there is no lookup by
+parcel. Keep the `transferId` that `add` returns.
 
 ```jsonc
-{ "action": "status", "transferId": "4f1c8a02-…" }   // this transfer and everything on it
-{ "action": "status", "orderId": 1234 }              // which transfer is this parcel on?
+{ "action": "status", "transferId": "4f1c8a02-…" }
 ```
-
-When you ask by `orderId`, `parcels` contains **that parcel only** — you get the transfer
-it is on, not the rest of the truck.
 
 ### Response — HTTP 200
 
@@ -512,12 +509,6 @@ it is on, not the rest of the truck.
 ```
 
 On the `returned` flow each parcel also carries `hasUnresolvedQcTicket`.
-
-A parcel that has never been on a transfer is an **answer, not an error**:
-
-```jsonc
-{ "ok": true, "transferId": null, "parcels": [] }
-```
 
 Two things worth knowing:
 
@@ -555,7 +546,7 @@ Two things worth knowing:
 }
 ```
 
-Newest first. Parcel details are not included — use [`status`](#8-status--look-at-a-transfer-or-a-parcel)
+Newest first. Parcel details are not included — use [`status`](#8-status--look-at-a-transfer)
 for those.
 
 This is a plain read and never changes anything, so a transfer whose parcels have all
@@ -665,7 +656,7 @@ These fail the whole call:
 | **401** | `Invalid api key` | Key is wrong, or disabled. | Check the key. |
 | **401** | `Invalid signature` | Your HMAC doesn't match. **99% of the time you signed a different string than you sent.** | Re-read [section 4](#4-how-to-build-x-signature). |
 | **403** | `partner_scope_not_configured` | Your key is valid but isn't enabled for partner endpoints. | Email `ops@mofavo.com`. Nothing to fix in code. |
-| **403** | `unauthorizedPartnerForRequest` | The transfer — or an order you sent in `add`, `remove` or `status` — belongs to another delivery partner. `reason` says which; `add` and `remove` also list the foreign `orderIds`. | Don't retry. Drop those ids. |
+| **403** | `unauthorizedPartnerForRequest` | The transfer — or an order you sent in `add` or `remove` — belongs to another delivery partner. `reason` says which; `add` and `remove` also list the foreign `orderIds`. | Don't retry. Drop those ids. |
 
 ### Your request was wrong
 
@@ -709,9 +700,10 @@ depot**. That's right when the parcel has just arrived — and wrong when you lo
 a transfer ten minutes ago.
 
 So if you run accepts as a reconciliation job, **skip parcels that are already on a
-transfer** (`status` with `orderId` tells you). A parcel unloaded this way isn't lost: it
-drops off the transfer on the next read (`prunedLines`), and `dispatch` leaves it behind
-instead of sending a parcel that isn't on the truck.
+transfer** — keep the `transferId` each `add` returns; `status` on it lists what's aboard.
+A parcel unloaded this way isn't lost: it drops off the transfer on the next read
+(`prunedLines`), and `dispatch` leaves it behind instead of sending a parcel that isn't on
+the truck.
 
 ### 2. Repeating a call is always safe — and each repeat means something
 
