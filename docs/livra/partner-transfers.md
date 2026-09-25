@@ -15,6 +15,10 @@ parcel *in* when a truck arrives, this one sends it *out*.
 
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
+> **Prefer a picture?** [Transfer flowcharts](partner-transfers-flowcharts.html) draws the
+> whole workflow and, for every action, each check the server runs and the exact error it
+> answers.
+
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
@@ -35,6 +39,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [14. Read this before you write your retry logic](#14-read-this-before-you-write-your-retry-logic)
 - [15. Checklist before you go live](#15-checklist-before-you-go-live)
 - [16. Common mistakes](#16-common-mistakes)
+- [Transfer flowcharts](partner-transfers-flowcharts.html) (separate page)
 
 ---
 
@@ -352,7 +357,7 @@ Creates the transfer if it doesn't exist yet, loads the parcels, and optionally 
   "type": "delivery",          // required — "delivery" or "returned"
   "orderIds": [1234, 1235],    // required — 1 to 200 order ids
   "dispatch": false,           // optional — true sends the truck at the end of this call
-  "driverId": 42,              // optional — defaults to the driver configured for this route
+  "driverId": 42,              // optional — any of your drivers; defaults to the route's configured driver
   "blockWrongDestination": true, // optional, default true — see "Wrong destination depot" below
   "employeeId": 482,           // optional — who loaded it (see section 3)
   "employeeName": "Mehdi Toumi" // optional — fallback name if we don't know that id
@@ -669,7 +674,7 @@ These fail the whole call:
 | **400** | `Missing or invalid field: …` | The message names the field. Send it as a number where a number is expected. |
 | **400** | `same_depot` | Source and destination are the same depot. |
 | **400** | `depot_not_found` | A depot id isn't one of yours, or doesn't exist. Check your depot mapping. |
-| **400** | `driver_not_found` | `driverId` isn't an active transfer driver of yours. Leave it out to use the route's driver. |
+| **400** | `driver_not_found` | `driverId` doesn't exist, or isn't one of your drivers. Leave it out to use the route's driver. |
 | **400** | `transfer_not_found` | Unknown `transferId`. Check the id. |
 | **400** | `Invalid field: orderIds (dispatch sends the whole transfer; …)` | `dispatch` takes only `transferId`. `remove` the parcels that should stay, then dispatch. |
 | **400** | `Invalid field: blockWrongDestination (must be a boolean)` | Send `true` or `false`, or leave it out. |
