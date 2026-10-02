@@ -6,6 +6,7 @@ Browse integration and API guides:
 - [Livra Accept In Depot (delivery partners)](livra/partner-accept-in-depot.md) — check a parcel into your own depot over the API
 - [Livra Transfers Between Depots (delivery partners)](livra/partner-transfers.md) — send parcels from one of your depots to another over the API
 - [Livra Get Order (delivery partners)](livra/partner-get-order.md) — read one of your orders back: content, status, dates, and the slip hash
+- [Livra Merchant Settlement (delivery partners)](livra/partner-merchant-settlement.md) — record a merchant settlement you already paid, with the amount checked against ours
 - [Mofavo external orders API](external/README.md) — create orders via `POST https://api.mofavo.com/external`
 - [WooCommerce APIs](woocommerce/README.md) — stock and order status endpoints
 - [Shopa callback API](shopa/README.md) — Shopa callbacks and history events
