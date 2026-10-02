@@ -246,11 +246,16 @@ Create Order and Update Order already return the same `hash` in their responses;
   "changes": [
     {
       "type": "PHONE_CHANGE",
-      "oldValue": "+971500000000",
-      "newValue": "+971511111111"
+      "oldValue": "50000000",
+      "newValue": "51111111"
+    },
+    {
+      "type": "AMOUNT_CHANGE",
+      "oldValue": 110,
+      "newValue": 125.5
     }
   ],
-  "comment": "Customer requested phone correction",
+  "comment": "Customer requested phone and amount correction",
   "makeRegular": false
 }
 ```
@@ -258,17 +263,31 @@ Create Order and Update Order already return the same `hash` in their responses;
 ### Rules
 
 - `orderId` must be a positive integer.
-- `changes` must be a non-empty array.
-- Each change requires `type` and must be one of:
-  - `PHONE_CHANGE`
-  - `PHONE2_CHANGE`
-  - `AMOUNT_CHANGE`
-  - `ADDRESS_CHANGE`
-  - `ALLOW_OPEN_CHANGE`
-  - `DELIVERY_DATE_CHANGE`
-- `oldValue` and `newValue` are optional and can be any JSON value.
+- `changes` must be a non-empty array. One request can carry one change or several of
+  different types (e.g. a phone and an amount together, as in the example above).
+- Each change requires `type`, one of the types below, and a `newValue` of the type shown.
+  Values are checked strictly: `"79"` is not an amount, and `"true"` is not a boolean.
+
+  | `type` | `newValue` | Example |
+  |---|---|---|
+  | `AMOUNT_CHANGE` | number, `>= 0` | `79`, `125.5` |
+  | `ALLOW_OPEN_CHANGE` | boolean | `true` |
+  | `PHONE_CHANGE` | string: optional `+`, then 8 to 15 digits. Spaces and dashes are allowed and removed before saving (`"51 111 111"` and `"51-111-111"` are saved as `"51111111"`). Dots, brackets, tabs and other characters are rejected. | `"51111111"` |
+  | `PHONE2_CHANGE` | same as `PHONE_CHANGE`, or `""` to remove the second phone. `null` is rejected: send `""` instead. | `"51111111"`, `""` |
+  | `DELIVERY_DATE_CHANGE` | the planned delivery day, as a `"YYYY-MM-DD"` date that exists, today or later (Tunisia time). A past date is rejected. `null` clears the planned date. | `"2026-10-02"`, `null` |
+  | `ADDRESS_CHANGE` | an object with any of `street`, `zone`, `city`, `state`, `zipcode`. Each value is a string or `null`; strings are trimmed before saving and may be at most 255 characters after trimming. A value of only spaces is rejected. At least one field must be non-empty. Any other key is rejected. | `{ "street": "12 Rue X", "zipcode": "2036" }` |
+
+- In `ADDRESS_CHANGE`, a `null` or `""` field is **ignored** when the request is approved, not
+  cleared: the order keeps its current value. Send only the fields that change.
+- `oldValue` is optional, is not checked, and is only shown to whoever reviews the request.
+  Use the same type as `newValue` so it displays well.
+- Each `type` may appear only once per request. To change several fields, put all of them in
+  the **same** request rather than sending them one by one: a new request for the order replaces
+  its pending one, so sending them separately would keep only the last.
 - `comment` is optional string.
 - `makeRegular` is optional boolean.
+- If your API key is linked to a delivery partner, the order must belong to that partner. Any
+  other order is answered with `order_not_found`, exactly as if it didn't exist.
 - Order must currently be in `inDepot` or `inTransit` status.
 - If the order is exchange-linked and `deliveryDate` is set (exchange already happened), request creation is blocked.
 
@@ -279,11 +298,18 @@ Create Order and Update Order already return the same `hash` in their responses;
 ### Errors
 
 - **400** one of:
-  - `order_not_found`
+  - `order_not_found` (also for an order that belongs to another delivery partner)
   - `order_status_not_eligible_for_change_request`
   - `exchange_already_completed_change_request_not_allowed`
   - `no_changes_provided`
-  - validation errors
+  - `body is not valid JSON`
+  - validation errors. Each names the change and says what to send, for example:
+    - `changes[0].newValue must be a number, not a string: send 79, not "79"`
+    - `changes[0].newValue must be true or false without quotes: send true, not "true"`
+    - `changes[0].newValue must be a phone number like "51111111"`
+    - `changes[0].newValue is in the past (today is 2026-10-02)`
+    - `changes[0].newValue.primaryStreet is not an address field (use street, zone, city, state, zipcode)`
+    - `changes[1] repeats AMOUNT_CHANGE from changes[0]`
 - **401** missing/invalid auth headers/signature
 - **500** internal error
 
