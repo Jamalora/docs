@@ -258,7 +258,7 @@ Use it when the merchant cancels an order **before the driver has collected it**
   }
   ```
 
-- **Safe to retry.** Cancelling an order that is already cancelled is also a **200**, with `alreadyCancelled: true` and the original `cancelledAt`. Nothing changes. After a timeout or a network error, just send the cancel again.
+- **Safe to retry.** Cancelling an order that is already cancelled is also a **200**, with `alreadyCancelled: true` and the original `cancelledAt` (`null` for an order cancelled before the cancellation date was recorded). Nothing changes. After a timeout or a network error, just send the cancel again.
 
 ### Cancel: errors
 
