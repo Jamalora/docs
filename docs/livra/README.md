@@ -155,7 +155,18 @@ Use these headers for all Livra integration endpoints:
 - **URL:** `https://livra.mofavo.com/update_order`
 - **Method:** `POST`
 
-### Request body
+One endpoint, two actions on an order that is still waiting for its pickup (`readyForPickUp`):
+
+| Action | Body | What it does |
+|---|---|---|
+| **Update** | no `action` | Patch-style edit of the order's fields. |
+| **Cancel** | `"action": "cancel"` | Cancels the order before the driver collects it. |
+
+If your API key is bound to a delivery partner, both actions reach only that partner's orders; any other order is answered with `order_not_found`, the same as one that doesn't exist.
+
+Every response carries an `x-request-id` header. Quote it when you report a problem: it finds the one log line for your request.
+
+### Update: request body
 
 Patch-style payload. Only `orderId` is required; all other fields are optional.
 
@@ -180,19 +191,19 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 }
 ```
 
-### Constraints
+### Update: constraints
 
 - `orderId` must exist.
 - Existing order status must still be `readyForPickUp`; otherwise update is rejected.
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
 
-### Success
+### Update: success
 
 - **200**: `{ "orderId": <number>, "hash": "<string>" }`
   - `hash` is the recomputed order-slip QR hash after the update (see Create Order). Any slip printed with an older hash must be reprinted.
 
-### Errors
+### Update: errors
 
 - **400** one of:
   - `order_not_found`
@@ -200,6 +211,64 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
   - plus all create-order 400 errors
 - **401** missing/invalid auth headers/signature
 - **500** internal error
+
+### Cancel: request body
+
+Use it when the merchant cancels an order **before the driver has collected it**.
+
+```json
+{
+  "orderId": 1234,
+  "action": "cancel",
+  "reason": "Customer changed their mind",
+  "comment": "Called the customer on 05/10"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `orderId` | yes | Positive integer. |
+| `action` | yes | Exactly `"cancel"`. |
+| `reason` | no | String, up to 255 characters. The cancellation reason, shown with the order. |
+| `comment` | no | String, up to 1000 characters. Free text, shown with the order. |
+
+- A cancel takes **only** these four fields. Any other field (e.g. `amount`) is a **400**: cancel and edit are never mixed in one request.
+- `reason` and `comment` may be left out, sent as `null`, or sent blank: all three mean "not given". Longer text is cut to the limit.
+
+### Cancel: what happens
+
+- The order becomes **`cancelled`**, and its pending pickup is removed, so no driver is sent for it.
+- A cancel before pickup is **free**: no cancellation fee is charged.
+- The order's history shows an **order cancelled** event with the reason and comment.
+- The Status API reports it as `orderStatus: "cancelled"`, `deliveryStatus: "cancelled"`.
+- A cancelled order can't be edited or un-cancelled through the API.
+
+### Cancel: success
+
+- **200**:
+
+  ```json
+  {
+    "ok": true,
+    "orderId": 1234,
+    "status": "cancelled",
+    "cancelledAt": "2026-10-05T09:12:44.120Z",
+    "alreadyCancelled": false
+  }
+  ```
+
+- **Safe to retry.** Cancelling an order that is already cancelled is also a **200**, with `alreadyCancelled: true` and the original `cancelledAt`. Nothing changes. After a timeout or a network error, just send the cancel again.
+
+### Cancel: errors
+
+| Status | `error` | Meaning | What to do |
+|---|---|---|---|
+| **400** | validation message | Missing/invalid `orderId`, an `action` other than `"cancel"`, a non-string `reason`/`comment`, or extra fields. | Fix the request. |
+| **400** | `order_not_found` | No such order, or it isn't yours. | Check the `orderId`. |
+| **409** | `order_already_picked_up` | The driver has already collected the parcel. The body also has the order's current `orderStatus` (e.g. `"inTransit"`). | It can't be cancelled here any more. To change an order in the network, use Change Request. |
+| **409** | `order_busy` | The order was being changed at the same moment (e.g. the driver was scanning it). | Retry once after a second. The answer will then be `200` or `order_already_picked_up`. |
+| **401** | `Missing authentication headers` / `Invalid api key` / `Invalid signature` | Authentication failed. | Check `x-api-key` and how you sign the body. |
+| **500** | `internal_error` | Our error. | Retry later; send us the `x-request-id` if it persists. |
 
 ## Order Hash
 
