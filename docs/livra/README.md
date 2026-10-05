@@ -216,6 +216,12 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 Use it when the merchant cancels an order **before the driver has collected it**.
 
+**Which orders can be cancelled:**
+- Orders created through these APIs: Create Order, or External Create Order. Orders made in the merchant app are refused: their stock goes back to the merchant only through the app's own cancel.
+- Orders still waiting for the pickup (`readyForPickUp`), or whose pickup was declined (`pickUp-declined`).
+- Orders that haven't been handed over to another delivery partner (outsourced).
+- The API key must be a delivery partner's key: Livra's. Other keys get a **403**.
+
 ```json
 {
   "orderId": 1234,
@@ -237,7 +243,7 @@ Use it when the merchant cancels an order **before the driver has collected it**
 
 ### Cancel: what happens
 
-- The order becomes **`cancelled`**, and its pending pickup is removed, so no driver is sent for it.
+- The order becomes **`cancelled`**, and its pending pickup is called off, so no driver is sent for it.
 - A cancel is **not a return**. A returned order is one whose delivery was attempted, failed, and came back to the merchant (`orderStatus: "returned"`). A cancelled order never had a delivery attempt.
 - A cancel before pickup is **free**: no cancellation fee is charged.
 - The order's history shows an **order cancelled** event with the reason and comment.
@@ -267,8 +273,12 @@ Use it when the merchant cancels an order **before the driver has collected it**
 | **400** | validation message | Missing/invalid `orderId`, an `action` other than `"cancel"`, a non-string `reason`/`comment`, or extra fields. | Fix the request. |
 | **400** | `order_not_found` | No such order, or it isn't yours. | Check the `orderId`. |
 | **409** | `order_already_picked_up` | The driver has already collected the parcel. The body also has the order's current `orderStatus` (e.g. `"inTransit"`). | It can't be cancelled here any more. To change an order in the network, use Change Request. |
+| **409** | `order_not_cancellable` | Not collected, but in a status this API can't cancel (e.g. `"readyForPackaging"`). The body has `orderStatus`. | Cancel it in the merchant app. |
+| **409** | `order_managed_in_merchant_app` | The order was made in the merchant app, not through these APIs. | Cancel it in the merchant app. |
+| **409** | `order_outsourced` | The order has been handed over to another delivery partner. | Contact operations. |
 | **409** | `order_busy` | The order was being changed at the same moment (e.g. the driver was scanning it). | Retry once after a second. The answer will then be `200` or `order_already_picked_up`. |
 | **401** | `Missing authentication headers` / `Invalid api key` / `Invalid signature` | Authentication failed. | Check `x-api-key` and how you sign the body. |
+| **403** | `partner_scope_not_configured` | This API key isn't a delivery partner's key, so it can't cancel. | Use the delivery partner's key (ask `ops@mofavo.com`). |
 | **500** | `internal_error` | Our error. | Retry later; send us the `x-request-id` if it persists. |
 
 ## Order Hash
