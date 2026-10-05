@@ -238,6 +238,7 @@ Use it when the merchant cancels an order **before the driver has collected it**
 ### Cancel: what happens
 
 - The order becomes **`cancelled`**, and its pending pickup is removed, so no driver is sent for it.
+- A cancel is **not a return**. A returned order is one whose delivery was attempted, failed, and came back to the merchant (`orderStatus: "returned"`). A cancelled order never had a delivery attempt.
 - A cancel before pickup is **free**: no cancellation fee is charged.
 - The order's history shows an **order cancelled** event with the reason and comment.
 - The Status API reports it as `orderStatus: "cancelled"`, `deliveryStatus: "cancelled"`.
