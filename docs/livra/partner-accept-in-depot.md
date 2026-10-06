@@ -44,7 +44,7 @@ You also need your **depot ids**. We give you the list. A depot id is a number, 
 
 ## 2. The request
 
-- **URL:** `https://external-api.livra.tn/partner_accept_in_depot`
+- **URL:** `https://livra.mofavo.com/partner_accept_in_depot`
 - **Method:** `POST`
 
 ### Headers
@@ -158,7 +158,7 @@ BODY='{"orderId":1234,"depotId":7}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://external-api.livra.tn/partner_accept_in_depot \
+curl -X POST https://livra.mofavo.com/partner_accept_in_depot \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -177,7 +177,7 @@ export async function acceptInDepot(orderId, depotId) {
   const body = JSON.stringify({ orderId, depotId });
   const signature = crypto.createHmac("sha256", API_SECRET).update(body, "utf8").digest("hex");
 
-  const res = await fetch("https://external-api.livra.tn/partner_accept_in_depot", {
+  const res = await fetch("https://livra.mofavo.com/partner_accept_in_depot", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -205,7 +205,7 @@ def accept_in_depot(order_id: int, depot_id: int):
     signature = hmac.new(API_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
 
     res = requests.post(
-        "https://external-api.livra.tn/partner_accept_in_depot",
+        "https://livra.mofavo.com/partner_accept_in_depot",
         headers={
             "Content-Type": "application/json",
             "x-api-key": API_KEY,
@@ -227,7 +227,7 @@ $apiSecret = getenv('API_SECRET');
 $body = json_encode(['orderId' => 1234, 'depotId' => 7]);
 $signature = hash_hmac('sha256', $body, $apiSecret);
 
-$ch = curl_init('https://external-api.livra.tn/partner_accept_in_depot');
+$ch = curl_init('https://livra.mofavo.com/partner_accept_in_depot');
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,

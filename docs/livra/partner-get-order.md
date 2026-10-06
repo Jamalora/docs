@@ -51,7 +51,7 @@ endpoints; if it isn't, every call returns `403 partner_scope_not_configured`.
 
 ## 2. The request
 
-- **URL:** `https://external-api.livra.tn/partner_get_order`
+- **URL:** `https://livra.mofavo.com/partner_get_order`
 - **Method:** `POST`
 
 ### Headers
@@ -125,7 +125,7 @@ BODY='{"orderId":1234}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://external-api.livra.tn/partner_get_order \
+curl -X POST https://livra.mofavo.com/partner_get_order \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -144,7 +144,7 @@ export async function getOrder(orderId) {
   const body = JSON.stringify({ orderId });
   const signature = crypto.createHmac("sha256", API_SECRET).update(body, "utf8").digest("hex");
 
-  const res = await fetch("https://external-api.livra.tn/partner_get_order", {
+  const res = await fetch("https://livra.mofavo.com/partner_get_order", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -172,7 +172,7 @@ def get_order(order_id: int):
     signature = hmac.new(API_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
 
     res = requests.post(
-        "https://external-api.livra.tn/partner_get_order",
+        "https://livra.mofavo.com/partner_get_order",
         headers={
             "Content-Type": "application/json",
             "x-api-key": API_KEY,
@@ -194,7 +194,7 @@ $apiSecret = getenv('API_SECRET');
 $body = json_encode(['orderId' => 1234]);
 $signature = hash_hmac('sha256', $body, $apiSecret);
 
-$ch = curl_init('https://external-api.livra.tn/partner_get_order');
+$ch = curl_init('https://livra.mofavo.com/partner_get_order');
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,
