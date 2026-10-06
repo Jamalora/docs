@@ -88,7 +88,6 @@ That's all. **There is no `Authorization` header and no bearer token on this end
   "method": "BANK_WIRE",
   "amount": 158.96,
   "employeeId": 482,
-  "periodEnd": "2026-09-20",
   "dryRun": false
 }
 ```
@@ -100,7 +99,6 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | `method` | string | yes | `CASH` or `BANK_WIRE`. |
 | `amount` | number | yes | The **net** you paid the merchant, after fees and retenue. Must match ours to the cent. Can be negative (for example a batch of cancellations only). |
 | `employeeId` | number | yes | The employee who made the settlement (your `agentId`). Any of your employees. |
-| `periodEnd` | string | no | `YYYY-MM-DD`, the last day the settlement covers, saved as the payment's period end. Not in the future. Default: today. It does not change the amounts or which orders are settled. |
 | `dryRun` | boolean | no | `true` computes and returns everything, and records **nothing**. Default: `false`. |
 
 - Ids and amounts must be **numbers**, not strings. `"12"` is wrong. `12` is right.
@@ -178,7 +176,7 @@ axios.post(url, settlement);                        // …axios serializes a dif
 ```bash
 API_KEY="your-api-key"
 API_SECRET="your-api-secret"
-BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":158.96,"employeeId":482,"periodEnd":"2026-09-20","dryRun":true}'
+BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":158.96,"employeeId":482,"dryRun":true}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
@@ -292,7 +290,6 @@ recorded:
   "paymentId": "5b0c2f7e-0d3c-4f8e-9c51-2a7f6b1e9d40",
   "merchantId": 12,
   "method": "BANK_WIRE",
-  "periodEnd": "2026-09-20",
   "totals": { "gross": 180, "fees": 16, "withholdingBase": 168, "withholding": 5.04, "amount": 158.96 },
   "lines": [
     { "orderId": 101, "operation": "delivered", "orderAmount": 100, "fee": 7, "net": 93 },
@@ -307,7 +304,7 @@ recorded:
 | `dryRun` | `true` when nothing was recorded because you asked for a dry run. |
 | `duplicate` | `true` when this settlement was **already recorded** — see [section 8](#8-retries-and-duplicates). Nothing new was recorded. |
 | `paymentId` | Our id for the payment. **Store it** next to your transaction: it's the key for any reconciliation. `null` on a dry run. |
-| `method`, `periodEnd` | As recorded. On a `duplicate`, these are the stored payment's values. |
+| `method` | As recorded. On a `duplicate`, this is the stored payment's method. |
 | `totals.gross` | Order amounts of the delivered and exchanged orders. |
 | `totals.fees` | All the fees together. |
 | `totals.withholdingBase` | What the 3% retenue is computed on. |
