@@ -89,7 +89,6 @@ That's all. **There is no `Authorization` header and no bearer token on this end
   "amount": 158.96,
   "employeeId": 482,
   "periodEnd": "2026-09-20",
-  "reference": "LIV-TX-1",
   "dryRun": false
 }
 ```
@@ -101,8 +100,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | `method` | string | yes | `CASH` or `BANK_WIRE`. |
 | `amount` | number | yes | The **net** you paid the merchant, after fees and retenue. Must match ours to the cent. Can be negative (for example a batch of cancellations only). |
 | `employeeId` | number | yes | The employee who made the settlement (your `agentId`). Any of your employees. |
-| `periodEnd` | string | no | `YYYY-MM-DD`, the last day the settlement covers. Not in the future. Default: today. |
-| `reference` | string | no | Your own transaction id, up to 100 characters. We send it back and log it, so quote it when you contact us. |
+| `periodEnd` | string | no | `YYYY-MM-DD`, the last day the settlement covers, saved as the payment's period end. Not in the future. Default: today. It does not change the amounts or which orders are settled. |
 | `dryRun` | boolean | no | `true` computes and returns everything, and records **nothing**. Default: `false`. |
 
 - Ids and amounts must be **numbers**, not strings. `"12"` is wrong. `12` is right.
@@ -180,7 +178,7 @@ axios.post(url, settlement);                        // …axios serializes a dif
 ```bash
 API_KEY="your-api-key"
 API_SECRET="your-api-secret"
-BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":158.96,"employeeId":482,"periodEnd":"2026-09-20","reference":"LIV-TX-1","dryRun":true}'
+BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":158.96,"employeeId":482,"periodEnd":"2026-09-20","dryRun":true}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
@@ -293,7 +291,6 @@ recorded:
   "duplicate": false,
   "paymentId": "5b0c2f7e-0d3c-4f8e-9c51-2a7f6b1e9d40",
   "merchantId": 12,
-  "reference": "LIV-TX-1",
   "method": "BANK_WIRE",
   "periodEnd": "2026-09-20",
   "totals": { "gross": 180, "fees": 16, "withholdingBase": 168, "withholding": 5.04, "amount": 158.96 },
@@ -413,7 +410,7 @@ tries. Every other error gives the same answer the second time.
 | `400 invalid_payload` | Read `detail`: it names the field. Often an id sent as a string, or a repeated order id. |
 | `403 partner_scope_not_configured` | Nothing wrong with your code. Your key isn't switched on for partner routes yet — email us. |
 
-Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call and your
-`reference`.
+Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call and, if one
+was recorded, the `paymentId`.
 
 [← Back to Livra integration guide](README.md)
