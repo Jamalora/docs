@@ -15,8 +15,6 @@ This document describes how to call Livra integration endpoints from your app.
 - [Transfers Between Depots (delivery partners)](partner-transfers.md)
 - [Get Order (delivery partners)](partner-get-order.md)
 
-[← Back to documentation index](../README.md)
-
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
 > [Accept In Depot](partner-accept-in-depot.md) to check a parcel in when a truck
