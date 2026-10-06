@@ -63,7 +63,7 @@ You also need, for each settlement:
 
 ## 2. The request
 
-- **URL:** `https://external-api.livra.tn/partner_merchant_settlement`
+- **URL:** `https://livra.mofavo.com/partner_merchant_settlement`
 - **Method:** `POST`
 
 > **Test on staging first:** `https://staging.livra.mofavo.com/partner_merchant_settlement`,
@@ -184,7 +184,7 @@ BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":15
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://external-api.livra.tn/partner_merchant_settlement \
+curl -X POST https://livra.mofavo.com/partner_merchant_settlement \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -203,7 +203,7 @@ export async function settleMerchant(settlement) {
   const body = JSON.stringify(settlement);
   const signature = crypto.createHmac("sha256", API_SECRET).update(body, "utf8").digest("hex");
 
-  const res = await fetch("https://external-api.livra.tn/partner_merchant_settlement", {
+  const res = await fetch("https://livra.mofavo.com/partner_merchant_settlement", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -236,7 +236,7 @@ def settle_merchant(settlement: dict):
     signature = hmac.new(API_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
 
     res = requests.post(
-        "https://external-api.livra.tn/partner_merchant_settlement",
+        "https://livra.mofavo.com/partner_merchant_settlement",
         headers={
             "Content-Type": "application/json",
             "x-api-key": API_KEY,
@@ -265,7 +265,7 @@ $body = json_encode([
 ]);
 $signature = hash_hmac('sha256', $body, $apiSecret);
 
-$ch = curl_init('https://external-api.livra.tn/partner_merchant_settlement');
+$ch = curl_init('https://livra.mofavo.com/partner_merchant_settlement');
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,
