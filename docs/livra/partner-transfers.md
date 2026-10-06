@@ -112,7 +112,7 @@ own.
 
 ## 3. The request
 
-- **URL:** `https://external-api.livra.tn/partner_transfer`
+- **URL:** `https://livra.mofavo.com/partner_transfer`
 - **Method:** `POST`
 
 ### Headers
@@ -232,7 +232,7 @@ import crypto from "node:crypto";
 
 const API_KEY = process.env.API_KEY;
 const API_SECRET = process.env.API_SECRET;
-const URL = "https://external-api.livra.tn/partner_transfer";
+const URL = "https://livra.mofavo.com/partner_transfer";
 
 async function transfer(action, payload = {}) {
   const body = JSON.stringify({ action, ...payload });        // action included, signed with the rest
@@ -270,7 +270,7 @@ import hmac, hashlib, json, requests
 
 API_KEY = "your-api-key"
 API_SECRET = "your-api-secret"
-URL = "https://external-api.livra.tn/partner_transfer"
+URL = "https://livra.mofavo.com/partner_transfer"
 
 def transfer(action: str, **payload):
     body = json.dumps({"action": action, **payload}, separators=(",", ":"))
@@ -307,7 +307,7 @@ BODY='{"action":"add","sourceDepotId":3,"destinationDepotId":7,"type":"delivery"
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://external-api.livra.tn/partner_transfer \
+curl -X POST https://livra.mofavo.com/partner_transfer \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -325,7 +325,7 @@ function transfer(string $action, array $payload, string $apiKey, string $apiSec
     $body = json_encode(array_merge(['action' => $action], $payload));
     $signature = hash_hmac('sha256', $body, $apiSecret);
 
-    $ch = curl_init('https://external-api.livra.tn/partner_transfer');
+    $ch = curl_init('https://livra.mofavo.com/partner_transfer');
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
