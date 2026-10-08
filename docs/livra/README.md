@@ -221,10 +221,12 @@ Use it when the merchant cancels an order **before the driver has collected it**
 - Orders still waiting for the pickup (`readyForPickUp`), or whose pickup was declined (`pickUp-declined`).
 - Orders that haven't been handed over to another delivery partner (outsourced).
 - The API key must be a delivery partner's key: Livra's. Other keys get a **403**.
+- The order must belong to the merchant in `merchantId`. Another merchant's order is `order_not_found`, so a merchant can't cancel orders that aren't theirs.
 
 ```json
 {
   "orderId": 1234,
+  "merchantId": 56,
   "action": "cancel",
   "reason": "Customer changed their mind",
   "comment": "Called the customer on 05/10"
@@ -234,11 +236,12 @@ Use it when the merchant cancels an order **before the driver has collected it**
 | Field | Required | Rules |
 |---|---|---|
 | `orderId` | yes | Positive integer. |
+| `merchantId` | yes | Positive integer. The merchant the order belongs to: the `merchantId` the order was created with. Send the merchant who asks for the cancel, as your platform knows them, never a value the merchant typed. |
 | `action` | yes | Exactly `"cancel"`. |
 | `reason` | no | String, up to 255 characters. The cancellation reason, shown with the order. |
 | `comment` | no | String, up to 1000 characters. Free text, shown with the order. |
 
-- A cancel takes **only** these four fields. Any other field (e.g. `amount`) is a **400**: cancel and edit are never mixed in one request.
+- A cancel takes **only** these five fields. Any other field (e.g. `amount`) is a **400**: cancel and edit are never mixed in one request.
 - `reason` and `comment` may be left out, sent as `null`, or sent blank: all three mean "not given". Longer text is cut to the limit.
 
 ### Cancel: what happens
@@ -270,8 +273,8 @@ Use it when the merchant cancels an order **before the driver has collected it**
 
 | Status | `error` | Meaning | What to do |
 |---|---|---|---|
-| **400** | validation message | Missing/invalid `orderId`, an `action` other than `"cancel"`, a non-string `reason`/`comment`, or extra fields. | Fix the request. |
-| **400** | `order_not_found` | No such order, or it isn't yours. | Check the `orderId`. |
+| **400** | validation message | Missing/invalid `orderId` or `merchantId`, an `action` other than `"cancel"`, a non-string `reason`/`comment`, or extra fields. | Fix the request. |
+| **400** | `order_not_found` | No such order, or it isn't yours: another delivery partner's order, or an order of another merchant than `merchantId`. | Check the `orderId` and the `merchantId`. |
 | **409** | `order_already_picked_up` | The driver has already collected the parcel. The body also has the order's current `orderStatus` (e.g. `"inTransit"`). | It can't be cancelled here any more. To change an order in the network, use Change Request. |
 | **409** | `order_not_cancellable` | Not collected, but in a status this API can't cancel (e.g. `"readyForPackaging"`). The body has `orderStatus`. | Cancel it in the merchant app. |
 | **409** | `order_managed_in_merchant_app` | The order was made in the merchant app, not through these APIs. | Cancel it in the merchant app. |
