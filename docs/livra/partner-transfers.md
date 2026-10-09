@@ -11,7 +11,9 @@ the parcel's transfer mission, ready to go, with its driver, and record it on th
 timeline. That's all: there is no transfer sheet to open, dispatch or close.
 
 When the parcel arrives, check it in at the destination with
-[Accept In Depot](partner-accept-in-depot.md). That closes the transfer.
+[Accept In Depot](partner-accept-in-depot.md). That closes the transfer. Changed your
+mind before the parcel leaves? [Cancel it](#8-cancelling-a-transfer) with the same
+endpoint.
 
 ## Contents
 
@@ -22,7 +24,8 @@ When the parcel arrives, check it in at the destination with
 - [5. The answer](#5-the-answer)
 - [6. Every error](#6-every-error)
 - [7. Scanning twice, and changing your mind](#7-scanning-twice-and-changing-your-mind)
-- [8. Checklist before you go live](#8-checklist-before-you-go-live)
+- [8. Cancelling a transfer](#8-cancelling-a-transfer)
+- [9. Checklist before you go live](#9-checklist-before-you-go-live)
 
 ---
 
@@ -79,6 +82,7 @@ No `Authorization` header and no bearer token.
 | `destinationDepotId` | yes | The depot it goes to: one of yours, and not the same as `sourceDepotId`. |
 | `driverId` | yes | **Our** id for the driver taking it: one of your drivers. The timeline shows the name we hold for that driver. |
 | `onWrongDestination` | no | `"block"` (the default) or `"warn"`: what to do when your zone routing sends this parcel to **another depot** than `destinationDepotId`. `block` refuses the scan; `warn` accepts it and tells you in `warnings`. |
+| `action` | no | `"transfer"` (the default) to send the parcel, or `"cancel"` to [call it off](#8-cancelling-a-transfer). |
 | `employeeId` | no | **Our** id for the employee who scanned it (the `agentId` we send you on the settlement webhooks). |
 | `employeeName` | no | The name to show when we don't know `employeeId`, or when you send none. Trimmed to one line, cut at 80 characters. |
 
@@ -283,6 +287,8 @@ ask for on a support ticket.
 | **409** | `terminal` | `active_last_mile_mission` | The parcel is out for delivery. | Resolve its delivery mission first. |
 | **409** | `terminal` | `unresolved_qc_ticket` | A return whose quality check is still open. We note the attempt on the timeline. | Close the QC ticket, then scan again. |
 | **409** | `terminal` | `wrong_destination_depot` | Your zone routing sends the parcel to `correctDestinationDepot`. | Send it there, or scan again with `onWrongDestination: "warn"`. |
+| **409** | `terminal` | `transfer_already_started` | Cancel only: the parcel has already left the depot. | Don't retry. |
+| **409** | `terminal` | `no_active_transfer` | Cancel only: the parcel has no open transfer. | Nothing to do. |
 | **401** | `error` | `missing_headers` | You forgot `x-api-key` or `x-signature`. | Send both headers. |
 | **401** | `error` | `invalid_api_key` | The key is wrong, or disabled. | Check the key. |
 | **401** | `error` | `invalid_signature` | Your HMAC doesn't match. Almost always: you signed a different string than you sent. | Re-read [section 3](#3-how-to-build-x-signature). |
@@ -296,6 +302,7 @@ ask for on a support ticket.
 | --- | --- |
 | The **same** scan again (same parcel, depots and driver) | `200 { "ok": true, ... }`, and nothing changes. Retrying after a timeout is always safe. |
 | The same parcel with **another destination or driver** | `200 { "ok": true, ... }`. The previous transfer of that parcel is closed as failed and a new one replaces it. |
+| A **cancel** while the parcel is still in the depot | `200 { "ok": true }`. The transfer is closed as failed; see [section 8](#8-cancelling-a-transfer). |
 | [Accept In Depot](partner-accept-in-depot.md) at the **destination** | The transfer is complete. |
 | Accept In Depot at **another depot** | The parcel is checked in there, and its transfer is closed as failed. |
 
@@ -304,7 +311,25 @@ closes any transfer still leaving **that same depot**. So run Accept In Depot wh
 parcel **arrives** at the departure depot, then this endpoint when it **leaves**. If you
 run accepts as a reconciliation job, skip parcels you have already scanned out.
 
-## 8. Checklist before you go live
+## 8. Cancelling a transfer
+
+Send the same endpoint `action: "cancel"` and the parcel, **while it is still in the
+departure depot**:
+
+```json
+{ "action": "cancel", "orderId": 1234, "employeeId": 482, "employeeName": "Mehdi Toumi" }
+```
+
+- **200** `{ "ok": true }`: the parcel's transfer is closed as failed (it stays on the
+  timeline, with who cancelled it). You can scan the parcel onto a new transfer afterwards.
+- **409** `transfer_already_started`: the driver has already picked the parcel up. A
+  transfer can only be cancelled before it starts.
+- **409** `no_active_transfer`: the parcel has no open transfer (never sent, already
+  arrived, or already cancelled). Sending the same cancel twice gives this the second time.
+
+No depot or driver is needed: a parcel has at most one open transfer.
+
+## 9. Checklist before you go live
 
 - [ ] The signature is computed over the **exact body string** you send.
 - [ ] All ids are sent as **numbers**, not strings.
@@ -318,7 +343,8 @@ run accepts as a reconciliation job, skip parcels you have already scanned out.
       `wrong_destination_depot`.
 - [ ] You log the `x-request-id` header of every response.
 - [ ] Your API secret is in an environment variable, not in the source code.
-- [ ] One full round trip tested on staging: transfer → Accept In Depot at the destination.
+- [ ] One full round trip tested on staging: transfer → Accept In Depot at the destination,
+      and transfer → cancel.
 
 Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call.
 
