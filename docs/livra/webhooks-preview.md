@@ -339,10 +339,11 @@ plain calendar date (`YYYY-MM-DD`).
 ## Deriving delivery outcome
 
 The advanced payload does not include a pre-computed `deliveryStatus`. Derive it
-from `deliveryDate` and `finalDestination`:
+from `status`, `deliveryDate` and `finalDestination`:
 
 | Condition | Outcome |
 | --- | --- |
+| `status` is `cancelled` | cancelled — cancelled before pickup, no delivery attempt (not a return) |
 | `deliveryDate` is `null` and `finalDestination` is `primaryRecipient` | pending — still in play |
 | `deliveryDate` is `null` and `finalDestination` is `merchant` | declined — customer refused, parcel heading back |
 | `deliveryDate` is not `null` | delivered |
