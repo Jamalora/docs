@@ -40,6 +40,8 @@ Use these headers for all Livra integration endpoints:
 - **URL:** `https://livra.mofavo.com/create_merchant`
 - **Method:** `POST`
 
+Creates a merchant with its sender and its contract and, optionally, the contract's sous-contrats: separate prices for `medium`, `large` and `extra_large` orders.
+
 ### Request body
 
 ```json
@@ -52,7 +54,7 @@ Use these headers for all Livra integration endpoints:
     "phoneNumber": "+971500000000",
     "zipcode": "00000",
     "TRN": "100000000000003",
-    "CIN": 12345678
+    "CIN": "01234567"
   },
   "sender": {
     "name": "Example Sender LLC",
@@ -65,17 +67,25 @@ Use these headers for all Livra integration endpoints:
     "deliveryPartnerId": 10,
     "deliveryFee": 12.5,
     "exchangeFee": 4.25,
-    "cancellationFee": 3.0
+    "cancellationFee": 3.0,
+    "sizeFees": {
+      "medium":      { "deliveryFee": 13.5, "exchangeFee": 5.25, "cancellationFee": 3.0 },
+      "large":       { "deliveryFee": 15,   "exchangeFee": 6,    "cancellationFee": 3.0 },
+      "extra_large": { "deliveryFee": 18,   "exchangeFee": 8,    "cancellationFee": 3.0 }
+    }
   }
 }
 ```
 
 ### Rules
 
-- `merchant.CIN` must be an 8-digit integer.
-- All merchant/sender string fields must be non-empty.
+- `merchant.TRN` and `merchant.CIN` are each optional, but **at least one** must be provided.
+- When provided, `merchant.CIN` must be a **string** of **exactly 8 digits** (e.g. `"01234567"`), so leading zeros are kept. `merchant.TRN` must be a non-empty string.
+- All other merchant/sender string fields must be non-empty.
 - `contract.deliveryPartnerId` must be a positive integer.
 - Contract fees must be non-negative numbers.
+- `contract.sizeFees` is **optional**. Its keys can only be `medium`, `large` and `extra_large`, and you can send any of them. Each size you send needs all three fees (`deliveryFee`, `exchangeFee`, `cancellationFee`), each a non-negative number.
+- A size you leave out gets no sous-contrat: orders of that size **cannot be settled** until one is added for it. They are not billed at the base fees.
 
 ### Success
 
@@ -83,7 +93,8 @@ Use these headers for all Livra integration endpoints:
 
 ### Errors
 
-- **400** invalid payload
+- **400** invalid payload: `{ "ok": false, "error": "<what is wrong>" }`, e.g. `Invalid field in contract.sizeFees: small (allowed sizes: medium, large, extra_large)`. Nothing is created.
+- **400** `merchant_cin_already_exists` / `merchant_trn_already_exists`: a merchant with this CIN or TRN already exists.
 - **401** missing/invalid auth headers/signature
 - **500** internal error
 
