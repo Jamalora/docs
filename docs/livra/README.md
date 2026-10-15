@@ -134,7 +134,13 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 }
 ```
 
-`callback_link` is optional. Omit it or leave off to disable webhooks for that order.
+`callback_link` is optional. Omit it to disable the per-order webhook for that order.
+
+> **Delivery partners with a partner feed: don't send `callback_link`.** If your
+> delivery partner already receives the [delivery-partner feed](#delivery-partner-feed-advanced),
+> you get every change for all your orders there. Sending `callback_link` as well
+> makes you receive each change a second time, in the
+> [simple format](#per-order-webhook-simple-callback_link), with a different `X-Webhook-ID`.
 
 ### Rules
 
@@ -145,7 +151,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 - `amount` must be non-negative.
 - `allowOpen`, `isExchange`, `isFragile` must be booleans.
 - If `isExchange=true`, `productsToRetrieve` is expected. Invalid/missing entries still proceed with fallback name `"unknown"`.
-- **`callback_link` (optional):** when present, Livra sends a signed `POST` to this URL whenever the order undergoes a meaningful status change (see [Order status webhooks](#order-status-webhooks)). Must be a valid absolute HTTP or HTTPS URL that accepts JSON `POST`s from Livra’s infrastructure.
+- **`callback_link` (optional):** when present, Livra sends a signed `POST` to this URL whenever the order changes, in the **simple** format (see [Per-order webhook](#per-order-webhook-simple-callback_link)). Must be a valid absolute HTTP or HTTPS URL that accepts JSON `POST`s from Livra’s infrastructure.
 
 ### Success
 
@@ -410,34 +416,108 @@ Create Order and Update Order already return the same `hash` in their responses;
 
 ## Order status webhooks
 
-When you include **`callback_link`** on [create order](#create-order), Livra calls that URL with an outbound webhook on every meaningful change to the order.
+Livra sends order webhooks through two separate channels, each with its own format:
 
-The delivery-partner feed (the callback URL configured for your delivery partner) also receives a `status.changed` as soon as an order becomes a Livra order: when it is created as `readyForPackaging` or `readyForPickUp`, or when its contract is switched to Livra. See [New orders for Livra](webhooks-preview.md#new-orders-for-livra).
+| Channel | How you get it | Covers | Format (`X-Webhook-Type` / `X-Webhook-Version`) |
+| --- | --- | --- | --- |
+| [Delivery-partner feed](#delivery-partner-feed-advanced) | Configured by the platform team for your delivery partner (one callback URL) | **Every** order of your delivery partner | `advanced` / `1` |
+| [Per-order webhook](#per-order-webhook-simple-callback_link) | `callback_link` on [create order](#create-order) | Only that order | `simple` / `1` |
 
-Every request carries two headers that identify exactly what you are receiving:
+The two are independent. If an order has both, **each change is sent twice**:
+once per channel, with a different `X-Webhook-ID`. If you already receive the
+delivery-partner feed, don't send `callback_link`.
 
-```
-X-Webhook-Type: advanced
-X-Webhook-Version: 1
-```
-
-Use `X-Webhook-Version` to guard your parsing logic against future changes.
+Always branch on the `X-Webhook-Type` and `X-Webhook-Version` headers before
+parsing the body.
 
 ---
 
-### Advanced webhook
+### Delivery-partner feed (advanced)
 
 **Current version: 1**
 
-The raw event payload as recorded by the platform. Each delivery represents one discrete change, with an explicit event name, a full snapshot of the current field values, and their previous values for comparison. Driver outcomes are separate `driver.*` events rather than a comment on an order event.
+The raw event payload as recorded by the platform. Each delivery represents one discrete change, with an explicit event name (`event`), a full snapshot of the order (`data`), and the previous values (`previous`). Driver outcomes are separate `driver.*` events.
+
+This feed also receives a `status.changed` as soon as an order becomes a Livra order: when it is created as `readyForPackaging` or `readyForPickUp`, or when its contract is switched to Livra. See [New orders for Livra](webhooks-preview.md#new-orders-for-livra).
 
 Full documentation: [Livra Webhooks — Advanced](webhooks-preview.md)
 
 ---
 
+### Per-order webhook (simple, `callback_link`)
+
+**Current version: 1**
+
+Sent to the `callback_link` of an order, on the same changes as the advanced
+feed (status, final destination, position, delivery date, driver outcomes and
+invoice settlement). Instead of the raw event, each request carries a compact,
+pre-computed status of the order **at the time it is sent**. There is no event
+name, so the same status can arrive more than once (for example at delivery and
+again at settlement).
+
+```
+POST <callback_link>
+Content-Type: application/json
+X-Webhook-ID: <delivery-uuid>
+X-Webhook-Signature: <hmac-hex>
+X-Webhook-Type: simple
+X-Webhook-Version: 1
+```
+
+```json
+{
+  "ok": true,
+  "timestamp": "2026-10-15T10:08:13.897915Z",
+  "orders": [
+    {
+      "id": 4817459,
+      "deliveryStatus": "pending",
+      "orderStatus": "inDepot",
+      "comment": null
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `timestamp` | When the change happened (UTC). Unchanged on retries. |
+| `orders[].id` | The order id returned by create order. Always one order per request. |
+| `orders[].deliveryStatus` | Overall outcome, see below. |
+| `orders[].orderStatus` | Where the order is now, see below. |
+| `orders[].comment` | `null`, except for driver outcomes: `declined`, `unreachable` or `rescheduled`. |
+
+`deliveryStatus`:
+
+| Value | When |
+| --- | --- |
+| `pending` | Still in progress (not delivered, heading to the customer). |
+| `delivered` | Delivered to the customer (`deliveryDate` is set). |
+| `cancelled` | Not delivered and heading back to, or back at, the merchant. |
+
+`orderStatus` is the order's status (same values as [`status`](webhooks-preview.md#status)
+in the advanced feed), except that `inTransit` is split by direction:
+
+| Value | Meaning |
+| --- | --- |
+| `inTransitToCustomer` | On the road toward the customer. |
+| `inTransitToMerchant` | On the road back to the merchant. |
+
+Examples:
+
+| Payload | Meaning |
+| --- | --- |
+| `pending` + `inDepot` | Parcel held in a depot, still going to the customer. |
+| `pending` + `inTransitToCustomer` | Out for delivery. |
+| `delivered` + `delivered` | Delivered to the customer. |
+| `cancelled` + `inTransitToMerchant` | Being returned to the merchant. |
+| `pending` + `inTransitToCustomer` + `comment: "unreachable"` | Driver couldn't reach the customer. |
+
+---
+
 ### Shared delivery mechanics
 
-The following applies to all Livra webhooks.
+The following applies to all Livra webhooks, advanced and simple.
 
 #### Verifying signatures
 
