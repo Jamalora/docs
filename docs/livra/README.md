@@ -412,6 +412,8 @@ Create Order and Update Order already return the same `hash` in their responses;
 
 When you include **`callback_link`** on [create order](#create-order), Livra calls that URL with an outbound webhook on every meaningful change to the order.
 
+The delivery-partner feed (the callback URL configured for your delivery partner) also receives a `status.changed` as soon as an order becomes a Livra order: when it is created as `readyForPackaging` or `readyForPickUp`, or when its contract is switched to Livra. See [New orders for Livra](webhooks-preview.md#new-orders-for-livra).
+
 Every request carries two headers that identify exactly what you are receiving:
 
 ```

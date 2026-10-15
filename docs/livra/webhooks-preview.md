@@ -32,6 +32,26 @@ change in the same update, the first match in this priority order wins:
 `data` snapshot is identical regardless of which field triggered the event — use
 `previous` to see exactly what changed.
 
+#### New orders for Livra
+
+`status.changed` is also emitted when an order **becomes a Livra order**, so
+you hear about it before its first status change:
+
+| Fires when | `data.status` | `previous` |
+| --- | --- | --- |
+| An order is **created** for Livra with status `readyForPackaging` or `readyForPickUp` | the initial status | all `null` |
+| An existing order's **contract is switched to Livra** (from another delivery partner or none), and it is not a `draft` | its current status | all `null` |
+
+- `previous` with every field `null` means "this order is new to you": treat it
+  as a new order, not a transition.
+- Orders created as `draft` are not sent at creation. You receive a normal
+  `status.changed` (with `previous.status = "draft"`) when they leave draft.
+- Switching an order from one Livra contract to another sends nothing.
+- If the contract switch and a status change happen in the same update, you
+  receive a single `status.changed` with the real `previous.status`.
+- These events are sent on the **delivery-partner feed** only (the callback URL
+  configured for your delivery partner), not to a per-order `callback_link`.
+
 ### Driver events
 
 Emitted when the driver records a last-mile outcome. Other mission transitions
@@ -278,6 +298,7 @@ Its shape depends on the event family:
 | Event family | `previous` |
 | --- | --- |
 | Order events | `{ status, finalDestination, currentPosition, deliveryDate }` — the tracked fields' values before the change. |
+| `status.changed` for a [new Livra order](#new-orders-for-livra) | `{ status: null, finalDestination: null, currentPosition: null, deliveryDate: null }` — there is no earlier state. |
 | Driver events | `{ missionStatus }` — the mission's prior status. |
 | `invoice.settled` | `{ settlementDate: null }` — settlement always transitions from unset. |
 
@@ -301,6 +322,7 @@ A driver event, for example:
 
 | Value | Meaning |
 | --- | --- |
+| `readyForPackaging` | Created and waiting to be packaged before pickup. |
 | `readyForPickUp` | Created and waiting to be collected by a courier. |
 | `missing` | The order was never received (no first-mile pickup recorded). |
 | `inDepot` | Held at a depot (before first-mile pickup, between legs, or after a customer decline). |
