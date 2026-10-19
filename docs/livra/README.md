@@ -15,15 +15,17 @@ This document describes how to call Livra integration endpoints from your app.
 - [Transfers Between Depots (delivery partners)](partner-transfers.md)
 - [Get Order (delivery partners)](partner-get-order.md)
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
+- [Returns (delivery partners)](partner-return.md)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
 > [Accept In Depot](partner-accept-in-depot.md) to check a parcel in when a truck
 > arrives, [Transfers Between Depots](partner-transfers.md) to send parcels on to
 > the next depot, [Get Order](partner-get-order.md) to read one of your orders back
-> (status, dates, and the slip hash for printing), and
+> (status, dates, and the slip hash for printing),
 > [Merchant Settlement](partner-merchant-settlement.md) to record a merchant settlement you
-> already paid on your platform.
+> already paid on your platform, and [Returns](partner-return.md) to keep your return
+> sheets (parcels going back to their merchant) in sync.
 
 ## Shared authentication headers
 
