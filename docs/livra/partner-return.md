@@ -90,8 +90,13 @@ Rules that apply to every return:
 
 ## 3. The request
 
-- **URL:** `https://livra.mofavo.com/partner_return`
+- **URL (production):** `https://livra.mofavo.com/partner_return`
+- **URL (staging):** `https://staging.livra.mofavo.com/partner_return`
 - **Method:** `POST`
+
+Build and test against **staging** first. It works the same way, with its own data and its
+own API key and secret (ask `ops@mofavo.com` for them). Your production key does not work
+on staging, and your staging key does not work in production.
 
 ### Headers
 
@@ -436,6 +441,7 @@ network errors. Every other error gives the same answer the second time.
 
 ## 9. Checklist before you go live
 
+- [ ] One full return tested on **staging**: `create` → `add` → `close`.
 - [ ] The signature is computed over the **exact body string** you send.
 - [ ] Ids are sent as **numbers**, not strings.
 - [ ] Each return sheet has **one stable `reference`**, sent on every call for it, and a new one for each trip.
