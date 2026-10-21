@@ -28,6 +28,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [5. Copy-paste examples](#5-copy-paste-examples)
 - [6. The response](#6-the-response)
   - [What happens to each order](#what-happens-to-each-order)
+  - [Webhooks](#webhooks)
 - [7. Every error, and what to do about it](#7-every-error-and-what-to-do-about-it)
 - [8. Retries: every call is safe to send again](#8-retries-every-call-is-safe-to-send-again)
 - [9. Checklist before you go live](#9-checklist-before-you-go-live)
@@ -113,7 +114,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | Field | Type | Rules |
 | --- | --- | --- |
 | `action` | string | Required. `"create"`, `"add"` or `"close"`. |
-| `reference` | string | Required. **Your** id for the return sheet: 1 to 100 characters (spaces at the ends are trimmed), no control characters. The same on every call for that sheet. We show it as the return's name. |
+| `reference` | string | Required. **Your** id for the return sheet: 1 to 100 characters (spaces at the ends are trimmed), no control characters. The same on every call for that sheet. We show it as the return's name, prefixed `partner:` (e.g. `partner:RET-2026-000154`). |
 | `employeeId` | number | Required. Positive whole number. **One of your employees** — the person who did this step. |
 
 - Ids must be **numbers**, not strings. `"123456"` is wrong. `123456` is right.
@@ -367,6 +368,17 @@ that id is the first thing we ask for.
 You can read any order back with [Get Order](partner-get-order.md) to see its `status`
 and `returnedDate`.
 
+### Webhooks
+
+The status changes above are **not sent back to your webhook feed**: you made them with
+this endpoint, so you already know. An `add` (order `inTransit`) or a `close` (order
+`returned`, `exchange-complete`, `exchange-returned` or back `inDepot`) sends you no
+`status.changed`.
+
+Everything else still reaches you as before, including changes made on our side to the
+same orders. The merchant's own order webhooks are not affected: the merchant is still
+told about every change.
+
 ## 7. Every error, and what to do about it
 
 Read the **`error` string**, not just the HTTP status.
@@ -398,7 +410,7 @@ Read the **`error` string**, not just the HTTP status.
 | **404** | `return_not_found` | `add` / `close`: no return with this `reference`. | Send the `create` first. |
 | **409** | `reference_in_use` | `create`: this `reference` is already a return with another merchant, depot or driver. | Use a new reference. |
 | **409** | `return_closed` | The return is closed: an `add`, a `create`, or a `close` with other not-returned orders. | **Don't retry.** Open a new return. |
-| **409** | `return_too_large` | The return would hold more than 300 orders. | Close it and open a new one for the rest. |
+| **409** | `return_too_large` | The return would hold more than 300 orders. An `add` can also get it part-way through, when another `add` on the same return filled it at the same moment: the orders before that point stay on the return. | Close it and open a new one for the rest. |
 | **409** | `busy` | Another call on this return is in flight. | Retry after a short pause. |
 
 ### Our side

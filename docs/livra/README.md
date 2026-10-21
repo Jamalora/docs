@@ -440,6 +440,8 @@ parsing the body.
 
 The raw event payload as recorded by the platform. Each delivery represents one discrete change, with an explicit event name (`event`), a full snapshot of the order (`data`), and the previous values (`previous`). Driver outcomes are separate `driver.*` events.
 
+This feed does **not** receive the changes you make yourself through the partner APIs ([Accept In Depot](partner-accept-in-depot.md), [Transfers](partner-transfers.md), [Returns](partner-return.md)): you already know about them. Changes made on our side still reach you.
+
 This feed also receives a `status.changed` as soon as an order becomes a Livra order: when it is created as `readyForPackaging` or `readyForPickUp`, or when its contract is switched to Livra. See [New orders for Livra](webhooks-preview.md#new-orders-for-livra).
 
 Full documentation: [Livra Webhooks — Advanced](webhooks-preview.md)
