@@ -74,7 +74,7 @@ No `Authorization` header and no bearer token.
 
 | Field | Required | What it is |
 | --- | --- | --- |
-| `orderId` | yes | The parcel. It must be one of your orders, and not delivered or returned (an exchange travelling back to the merchant is fine). |
+| `orderId` | yes | The parcel. It must be one of your orders, and not delivered, returned (an exchange travelling back to the merchant is fine) or cancelled. |
 | `sourceDepotId` | yes | The depot it leaves from: one of yours. |
 | `destinationDepotId` | yes | The depot it goes to: one of yours, and not the same as `sourceDepotId`. |
 | `driverId` | yes | **Our** id for the driver taking it: one of your drivers. The timeline shows the name we hold for that driver. |
@@ -280,6 +280,7 @@ ask for on a support ticket.
 | **400** | `error` | `driver_not_found` | The driver isn't one of yours, or the id is wrong. | Check your driver mapping. |
 | **409** | `terminal` | `already_delivered` | The parcel was already delivered. | Don't retry. |
 | **409** | `terminal` | `already_returned` | The parcel's return is complete. | Don't retry. |
+| **409** | `terminal` | `already_cancelled` | The order was cancelled: its status is `cancelled`, or it has a cancellation date (for example after a [cancel with Update Order](README.md#cancel-request-body)). No transfer is created. | Don't retry. |
 | **409** | `terminal` | `active_last_mile_mission` | The parcel is out for delivery. | Resolve its delivery mission first. |
 | **409** | `terminal` | `unresolved_qc_ticket` | A return whose quality check is still open. We note the attempt on the timeline. | Close the QC ticket, then scan again. |
 | **409** | `terminal` | `wrong_destination_depot` | Your zone routing sends the parcel to `correctDestinationDepot`. | Send it there, or scan again with `onWrongDestination: "warn"`. |
