@@ -309,6 +309,7 @@ to do for each one.
 | **400** | `orderShouldNotBeAcceptedHere` | That depot isn't yours, or the depot id is wrong. | Check your depot mapping. **Don't retry.** |
 | **400** | `orderAlreadyDelivered` | Already delivered. Final. | **Don't retry.** |
 | **400** | `orderAlreadyReturned` | Return already completed. Final. | **Don't retry.** |
+| **400** | `orderAlreadyCancelled` | The order was cancelled: its status is `cancelled`, or it has a cancellation date (for example after a [cancel with Update Order](README.md#cancel-request-body)). It is not checked in and stays as it is. Final. | **Don't retry.** Give the parcel back to the merchant. |
 | **400** | `last_mile_scan_block_active_mission` | A last-mile mission is still open on this order. | Close that mission, **then** retry. |
 | **400** | `orderAlreadyInThisDepot` | Already accepted at this depot. Also returns `acceptedAt`. | **Treat as SUCCESS.** See [section 7](#7-read-this-before-you-write-your-retry-logic). |
 
