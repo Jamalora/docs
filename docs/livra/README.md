@@ -132,6 +132,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
   "allowOpen": true,
   "isExchange": false,
   "isFragile": false,
+  "size": "medium",
   "callback_link": "https://your-app.example.com/livra/webhook"
 }
 ```
@@ -153,6 +154,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 - `amount` must be non-negative.
 - `allowOpen`, `isExchange`, `isFragile` must be booleans.
 - If `isExchange=true`, `productsToRetrieve` is expected. Invalid/missing entries still proceed with fallback name `"unknown"`.
+- **`size` (optional):** the parcel's size, one of `small`, `medium`, `large`, `extra_large`. It decides which of the merchant's contract prices applies: `small` is the main contract price, and each other size uses the contract's price for that size. Leave it out (or send `null`) and the order is `small`, exactly as before. Any other value is refused with **400** `Invalid field: size (must be one of small, medium, large, extra_large)`, and no order is created.
 - **`callback_link` (optional):** when present, Livra sends a signed `POST` to this URL whenever the order changes, in the **simple** format (see [Per-order webhook](#per-order-webhook-simple-callback_link)). Must be a valid absolute HTTP or HTTPS URL that accepts JSON `POST`s from Livra’s infrastructure.
 
 ### Success
