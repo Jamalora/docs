@@ -177,11 +177,11 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 - **URL:** `https://livra.mofavo.com/update_order`
 - **Method:** `POST`
 
-One endpoint, two actions on an order that is still waiting for its pickup (`readyForPickUp`):
+One endpoint, two actions on an order:
 
 | Action | Body | What it does |
 |---|---|---|
-| **Update** | no `action` | Patch-style edit of the order's fields. |
+| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup, only making it an exchange (`isExchange: true`), until it is delivered. |
 | **Cancel** | `"action": "cancel"` | Cancels the order before the driver collects it. |
 
 If your API key is bound to a delivery partner, both actions reach only that partner's orders; any other order is answered with `order_not_found`, the same as one that doesn't exist.
@@ -216,9 +216,30 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 ### Update: constraints
 
 - `orderId` must exist.
-- Existing order status must still be `readyForPickUp`; otherwise update is rejected.
+- While the order is `readyForPickUp`, every field above can change.
+- After the pickup, see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
+
+### Update: exchange after pickup
+
+An order the driver has already collected can still become an **exchange**, until it is delivered: in a depot (`inDepot`), between depots or out for delivery (`inTransit`).
+
+```json
+{
+  "orderId": 1234,
+  "isExchange": true,
+  "productsToRetrieve": [{ "name": "T-shirt M", "quantity": 1, "price": 30 }]
+}
+```
+
+- Only `isExchange: true` and `productsToRetrieve` are accepted. Any other field, `isExchange: false`, or `productsToRetrieve` without `isExchange: true` is rejected with `order_update_not_permitted`, and nothing changes.
+- `productsToRetrieve` lists what the driver collects from the customer at delivery. Without it, the driver collects one `unknown` product. On an order that is already an exchange, sending it replaces the list.
+- From then on the order is handled as an exchange: its delivery follows the exchange flow, and the driver collects the products to retrieve at the door. It is billed as an exchange.
+- The order's history shows the change: who made it, when, and the order's status at that moment.
+- **The slip on the parcel becomes outdated**: the products to retrieve are part of the slip hash. The response carries the new `hash`; the next depot scan of the old slip asks for a reprint, as after any change to an order in the network.
+- It can't be undone through the API after the pickup.
+- Once the order is delivered, returned (or on its way back to the merchant) or cancelled, it is refused with a clear error, see below.
 
 ### Update: success
 
@@ -229,9 +250,15 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 - **400** one of:
   - `order_not_found`
-  - `order_update_not_permitted`
+  - `order_update_not_permitted`: the order isn't `readyForPickUp` and the request isn't an exchange after pickup (see above), or its status allows neither (e.g. `missing`).
+  - `order_already_delivered`: exchange after pickup refused, the order was already handed to the customer.
+  - `order_already_returned`: exchange after pickup refused, the order is returned, or on its way back to the merchant.
+  - `order_cancelled`: exchange after pickup refused, the order is cancelled.
   - plus all create-order 400 errors
+
+  The last three, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "order_already_delivered", "orderStatus": "delivered" }`. Don't retry them.
 - **401** missing/invalid auth headers/signature
+- **409** `order_busy`: the order was being changed at the same moment (e.g. a driver scanning it). Retry once after a second.
 - **500** internal error
 
 ### Cancel: request body
