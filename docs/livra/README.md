@@ -233,6 +233,8 @@ An order the driver has already collected can still become an **exchange**, unti
 }
 ```
 
+- It needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. With any other key, an order past its pickup is refused with `order_update_not_permitted`, as before.
+- Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), can't be changed this way.
 - Only `isExchange: true` and `productsToRetrieve` are accepted. Any other field, `isExchange: false`, or `productsToRetrieve` without `isExchange: true` is rejected with `order_update_not_permitted`, and nothing changes.
 - `productsToRetrieve` lists what the driver collects from the customer at delivery. Without it, the driver collects one `unknown` product. On an order that is already an exchange, sending it replaces the list.
 - From then on the order is handled as an exchange: its delivery follows the exchange flow, and the driver collects the products to retrieve at the door. It is billed as an exchange.
@@ -254,9 +256,11 @@ An order the driver has already collected can still become an **exchange**, unti
   - `order_already_delivered`: exchange after pickup refused, the order was already handed to the customer.
   - `order_already_returned`: exchange after pickup refused, the order is returned, or on its way back to the merchant.
   - `order_cancelled`: exchange after pickup refused, the order is cancelled.
+  - `order_managed_in_merchant_app`: exchange after pickup refused, the order was made in the merchant app.
+  - `order_outsourced`: exchange after pickup refused, the order has been handed over to another delivery partner.
   - plus all create-order 400 errors
 
-  The last three, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "order_already_delivered", "orderStatus": "delivered" }`. Don't retry them.
+  These exchange refusals, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "order_already_delivered", "orderStatus": "delivered" }`. Don't retry them.
 - **401** missing/invalid auth headers/signature
 - **409** `order_busy`: the order was being changed at the same moment (e.g. a driver scanning it). Retry once after a second.
 - **500** internal error
