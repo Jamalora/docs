@@ -78,14 +78,14 @@ create ──► add ──► add ──► (remove) ──► collect
 2. **`add`** puts orders on it as you prepare the round. They wait in the depot.
 3. **`remove`** takes orders off it before the driver leaves. They stay in the depot.
 4. **`collect`**: the driver takes the parcels. Every order on the sheet goes
-   **out for delivery** (`inTransit`) with the driver. You send the **full list** of the
-   orders the driver takes, and it must match ours exactly.
+   **out for delivery** (`inTransit`) with the driver. You send only the `reference`.
 
 Rules that apply to every sheet:
 
 - **One sheet per driver that hasn't been collected yet.** Collect (or empty) the driver's
   current sheet before you open the next one.
-- **At most 300 orders per sheet**, and at most 100 order ids per `create`, `add` or `remove`.
+- **No limit on the sheet size.** Send up to 500 order ids per `create`, `add` or `remove`
+  call; we handle them in chunks, so the call stays fast.
 - **An order goes on a sheet only when it's ready to leave from that depot.** It must be
   in that depot, going to the customer, not cancelled, delivered or returned, not on
   another sheet, and not scheduled for a later day. We don't fix anything for you: each
@@ -143,7 +143,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | `depotId` | number | Required. One of your depots: where the parcels leave from. |
 | `driverId` | number | Required. One of your drivers. |
 | `date` | string | Required. The delivery day, `YYYY-MM-DD`: **today or tomorrow**, Tunis time. |
-| `orderIds` | number[] | Optional. 0 to 100 order ids, no duplicates. It does exactly what an `add` right after would do. |
+| `orderIds` | number[] | Optional. 0 to 500 order ids, no duplicates. It does exactly what an `add` right after would do. |
 
 ### `add`
 
@@ -158,7 +158,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `orderIds` | number[] | Required. 1 to 100 order ids, no duplicates. |
+| `orderIds` | number[] | Required. 1 to 500 order ids, no duplicates. |
 
 Each order is handled **on its own**. The valid ones go on the sheet, and the others are
 listed in the answer with the reason (see [section 6](#6-the-response)). You can still
@@ -177,7 +177,7 @@ listed in the answer with the reason (see [section 6](#6-the-response)). You can
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `orderIds` | number[] | Required. 1 to 100 order ids, no duplicates. |
+| `orderIds` | number[] | Required. 1 to 500 order ids, no duplicates. |
 
 Only **before `collect`**. After it, the parcels are with the driver: a parcel that comes
 back goes through [Accept In Depot](partner-accept-in-depot.md).
@@ -188,18 +188,17 @@ back goes through [Accept In Depot](partner-accept-in-depot.md).
 {
   "action": "collect",
   "reference": "LM-2026-000981",
-  "employeeId": 7,
-  "orderIds": [123456, 123457]
+  "employeeId": 7
 }
 ```
 
-| Field | Type | Rules |
-| --- | --- | --- |
-| `orderIds` | number[] | Required. **Every** order the driver takes: 1 to 300 ids, no duplicates. It must be exactly the list on the sheet. |
+No other field: **every order on the sheet goes out** with the driver. (An `orderIds` field
+is refused with `400 invalid_payload`.)
 
-A `collect` is **all or nothing**:
-- If your list differs from ours, nothing happens and the answer tells you the difference.
-- If one order can't go out, nothing is written either, and the sheet isn't collected.
+- An order that changed since you added it (cancelled, delivered…) doesn't go out: it's
+  listed in `errors` and stays on the sheet. `remove` it. The other orders go out.
+- Sending `collect` again is safe. If a call was cut short (a timeout), the resend
+  finishes it.
 
 ## 4. How to build `x-signature`
 
@@ -283,7 +282,7 @@ async function callLastMile(payload) {
 await callLastMile({ action: "create", reference: "LM-2026-000981", depotId: 3, driverId: 42, date: "2026-11-03", employeeId: 7 });
 await callLastMile({ action: "add", reference: "LM-2026-000981", employeeId: 7, orderIds: [123456, 123457, 123458] });
 await callLastMile({ action: "remove", reference: "LM-2026-000981", employeeId: 7, orderIds: [123458] });
-await callLastMile({ action: "collect", reference: "LM-2026-000981", employeeId: 7, orderIds: [123456, 123457] });
+await callLastMile({ action: "collect", reference: "LM-2026-000981", employeeId: 7 });
 ```
 
 ### Python
@@ -310,7 +309,7 @@ def call_last_mile(payload: dict):
     )
     return res.status_code, res.headers.get("x-request-id"), res.json()
 
-call_last_mile({"action": "collect", "reference": "LM-2026-000981", "employeeId": 7, "orderIds": [123456, 123457]})
+call_last_mile({"action": "collect", "reference": "LM-2026-000981", "employeeId": 7})
 ```
 
 ### PHP
@@ -369,24 +368,21 @@ This is also the answer when the step was **already done** (see [section 8](#8-r
 
 - On `create`, `add` and `remove`, **the other orders were applied.** Fix the listed ones
   and send them again, or send the whole call again: orders already done count as done.
-- On `collect`, **nothing was written** and the sheet is **not collected**. Fix the listed
-  orders (or `remove` them), then send the `collect` again.
+- On `collect`, **the other orders went out.** The listed ones changed since they were
+  added: they stay on the sheet, not collected. `remove` them.
 
 **The whole call was refused**: HTTP **4xx/5xx**, nothing applied.
 
 ```json
 {
   "ok": false,
-  "error": "order_list_mismatch",
-  "message": "The orders you sent do not match the orders on this sheet",
-  "details": { "missingOrderIds": [123458], "unexpectedOrderIds": [123999] }
+  "error": "invalid_payload",
+  "message": "Unknown field: orderIds (collect accepts action, reference, employeeId)",
+  "details": { "field": "orderIds" }
 }
 ```
 
-`details` appears in two cases:
-- `order_list_mismatch`: `missingOrderIds` are on our sheet but not in your list;
-  `unexpectedOrderIds` are in your list but not on our sheet.
-- `invalid_payload`: `{ "field": "date" }`, the field that's wrong.
+`details` comes with `invalid_payload` and names the field that's wrong.
 
 The answer never carries an id or status of ours. Every response, success or failure,
 also carries an **`x-request-id`** header. **Log it.** If you ever open a support ticket,
@@ -445,9 +441,7 @@ Read the **`error` string**, not just the HTTP status.
 | **409** | `driver_has_open_runsheet` | `create`: this driver already has a sheet with orders on it that hasn't been collected. | Collect it, or `remove` its orders, first. |
 | **409** | `runsheet_closed` | The sheet is finished. | **Don't retry.** Open a new sheet. |
 | **409** | `already_collected` | `remove`: the driver already has the parcels. | Use [Accept In Depot](partner-accept-in-depot.md) when a parcel comes back. |
-| **409** | `runsheet_full` | The sheet would hold more than 300 orders. | Open another sheet for the rest. |
 | **409** | `runsheet_empty` | `collect`: there's nothing on the sheet. | `add` orders first. |
-| **409** | `order_list_mismatch` | `collect`: your list isn't the sheet's. See `details`. | `add` / `remove` to match, or fix your list, then `collect` again. |
 | **409** | `busy` | Another call on this sheet is in flight. | Retry after a short pause. |
 
 ### Our side
@@ -473,8 +467,8 @@ Read the **`error` string**, not just the HTTP status.
 | `out_for_delivery` | create, add | A delivery of this order is already under way (with a driver, rescheduled, refused…). | [Accept it in depot](partner-accept-in-depot.md) first. |
 | `on_other_runsheet` | create, add | The order is on another sheet that hasn't left yet. `message` names that sheet when it's yours. | `remove` it from that sheet first. |
 | `not_on_this_runsheet` | remove | The order isn't on this sheet. | Nothing to remove. |
-| `busy` | create, add, remove | Another call on this order is in flight. | Send it again. |
-| `internal_error` | create, add, remove | Our error on this order. | Send it again later. |
+| `busy` | all | Another call on this order is in flight. | Send it again. |
+| `internal_error` | all | Our error on this order. | Send it again later. |
 
 ## 8. Retries: every call is safe to send again
 
@@ -484,7 +478,7 @@ Lost the answer? Timed out? **Send the same call again.** What is already done c
 - a `create` with the same reference, depot, driver and date,
 - an order already on this sheet,
 - an order already removed from this sheet,
-- a `collect` of a sheet already collected, with the same list.
+- a `collect` of a sheet already collected (it finishes anything left).
 
 Worth retrying automatically: `busy` (after a short pause), `internal_error` (once), and
 network errors. Every other error gives the same answer the second time.
@@ -498,7 +492,6 @@ network errors. Every other error gives the same answer the second time.
 - [ ] Parcels are [accepted in depot](partner-accept-in-depot.md) before they go on a sheet.
 - [ ] You send `employeeId` on every call, and it is one of your employees.
 - [ ] You read `ok` and, when it's `false`, the `errors` list: a `200` isn't always a full success.
-- [ ] `collect` sends the **full** list of the sheet's orders.
 - [ ] Only `busy`, `internal_error` and network errors are retried automatically.
 - [ ] You log the `x-request-id` header of every response.
 - [ ] Your API secret is in an environment variable, not in the source code.
@@ -511,7 +504,6 @@ network errors. Every other error gives the same answer the second time.
 | `400 invalid_payload` with `Unknown field` | A field that action doesn't take, e.g. `driverId` on `add`. Only `create` takes `depotId`, `driverId` and `date`. |
 | `404 runsheet_not_found` on `add` | The `create` wasn't sent, failed, or used a different `reference` (check the case). |
 | `not_in_depot` on most orders | The parcels weren't accepted in depot with [Accept In Depot](partner-accept-in-depot.md) before going on the sheet. |
-| `409 order_list_mismatch` on `collect` | Your list and ours drifted (an order was refused on `add`, or removed). `details` says which. |
 | `409 driver_has_open_runsheet` on `create` | Yesterday's sheet for that driver still has orders and wasn't collected. |
 
 Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call.
