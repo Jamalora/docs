@@ -16,6 +16,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Get Order (delivery partners)](partner-get-order.md)
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
 - [Returns (delivery partners)](partner-return.md)
+- [Last Mile (delivery partners)](partner-last-mile.md)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
@@ -24,8 +25,9 @@ This document describes how to call Livra integration endpoints from your app.
 > the next depot, [Get Order](partner-get-order.md) to read one of your orders back
 > (status, dates, and the slip hash for printing),
 > [Merchant Settlement](partner-merchant-settlement.md) to record a merchant settlement you
-> already paid on your platform, and [Returns](partner-return.md) to keep your return
-> sheets (parcels going back to their merchant) in sync.
+> already paid on your platform, [Returns](partner-return.md) to keep your return
+> sheets (parcels going back to their merchant) in sync, and [Last Mile](partner-last-mile.md)
+> to keep your drivers' delivery sheets in sync, up to the moment they collect the parcels.
 
 ## Shared authentication headers
 
