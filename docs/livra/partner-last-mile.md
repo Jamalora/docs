@@ -304,7 +304,8 @@ After `deliver`, the order stays out with the driver. When the driver is back in
 send `return` for it.
 
 When nothing on the sheet is still out, the sheet closes: any later call on it answers
-`409 runsheet_closed`.
+`409 runsheet_closed`. Resending the `deliver` or `return` that closed it (for example
+after a timeout) is still safe: it answers `ok`.
 
 ### `retry`
 
@@ -576,7 +577,7 @@ Read the **`error` string**, not just the HTTP status.
 | **404** | `runsheet_not_found` | No sheet with this `reference`. | Send the `create` first. |
 | **409** | `reference_in_use` | `create`: this `reference` is already a sheet with another depot, driver or date. | Use a new reference. |
 | **409** | `driver_has_open_runsheet` | `create`: this driver already has a sheet with orders on it that hasn't been collected. | Collect it, or `remove` its orders, first. |
-| **409** | `runsheet_closed` | The sheet is finished: everything on it was delivered, returned or removed. | **Don't retry.** Open a new sheet. |
+| **409** | `runsheet_closed` | The sheet is finished: everything on it was delivered, returned or removed. A resent `deliver` or `return` on it still answers `ok`. | **Don't retry.** Open a new sheet. |
 | **409** | `not_collected` | `return` or `deliver`: the sheet isn't collected yet, its parcels are still in the depot. | `collect` it first, or use `remove`. |
 | **409** | `runsheet_empty` | `collect`: there's nothing on the sheet. | `add` orders first. |
 | **409** | `busy` | Another call on this sheet is in flight. | Retry after a short pause. |
