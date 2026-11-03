@@ -86,7 +86,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
   "merchantId": 12,
   "orderIds": [101, 102, 103],
   "method": "BANK_WIRE",
-  "amount": 158.96,
+  "amount": 159.08,
   "employeeId": 482,
   "dryRun": false
 }
@@ -176,7 +176,7 @@ axios.post(url, settlement);                        // …axios serializes a dif
 ```bash
 API_KEY="your-api-key"
 API_SECRET="your-api-secret"
-BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":158.96,"employeeId":482,"dryRun":true}'
+BODY='{"merchantId":12,"orderIds":[101,102,103],"method":"BANK_WIRE","amount":159.08,"employeeId":482,"dryRun":true}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
@@ -215,7 +215,7 @@ export async function settleMerchant(settlement) {
 
 // 1. Our figures, nothing recorded:
 //    await settleMerchant({ merchantId: 12, orderIds: [101, 102, 103], method: "BANK_WIRE",
-//                           amount: 158.96, employeeId: 482, dryRun: true });
+//                           amount: 159.08, employeeId: 482, dryRun: true });
 // 2. Pay the merchant, then record it: the same body with dryRun: false.
 ```
 
@@ -255,7 +255,7 @@ $body = json_encode([
     'merchantId' => 12,
     'orderIds'   => [101, 102, 103],
     'method'     => 'BANK_WIRE',
-    'amount'     => 158.96,
+    'amount'     => 159.08,
     'employeeId' => 482,
     'dryRun'     => true,
 ]);
@@ -290,7 +290,7 @@ recorded:
   "paymentId": "5b0c2f7e-0d3c-4f8e-9c51-2a7f6b1e9d40",
   "merchantId": 12,
   "method": "BANK_WIRE",
-  "totals": { "gross": 180, "fees": 16, "withholdingBase": 168, "withholding": 5.04, "amount": 158.96 },
+  "totals": { "gross": 180, "fees": 16, "withholdingBase": 164, "withholding": 4.92, "amount": 159.08 },
   "lines": [
     { "orderId": 101, "operation": "delivered", "orderAmount": 100, "fee": 7, "net": 93 },
     { "orderId": 102, "operation": "exchange",  "orderAmount": 80,  "fee": 5, "net": 75 },
@@ -307,7 +307,7 @@ recorded:
 | `method` | As recorded. On a `duplicate`, this is the stored payment's method. |
 | `totals.gross` | Order amounts of the delivered and exchanged orders. |
 | `totals.fees` | All the fees together. |
-| `totals.withholdingBase` | What the 3% retenue is computed on. |
+| `totals.withholdingBase` | What the 3% retenue is computed on: the sum of `net` over the lines whose contract withholds, **cancelled lines included**, so a return's fee lowers it (example: 93 + 75 − 4 = 164; 3% = 4.92). |
 | `totals.withholding` | The retenue withheld, `0` when it doesn't apply. |
 | `totals.amount` | What the merchant was paid: `gross − fees − withholding`. |
 | `lines[]` | One line per order: its `operation`, `orderAmount`, `fee`, and `net` (what it adds to the merchant's money, before retenue). |
