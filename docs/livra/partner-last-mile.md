@@ -17,7 +17,10 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
-- [2. How a delivery sheet works: seven actions](#2-how-a-delivery-sheet-works-seven-actions)
+- [2. The flow](#2-the-flow)
+  - [The whole day of one sheet](#the-whole-day-of-one-sheet)
+  - [When something changes](#when-something-changes)
+  - [Rules for every sheet](#rules-for-every-sheet)
 - [3. The request](#3-the-request)
   - [`create`](#create)
   - [`add`](#add)
@@ -66,45 +69,52 @@ You also need these ids from us (we give you the lists):
 > **You do not send your partner id.** We read it from your API key, on purpose: you can
 > only ever work with **your own** depots, drivers and orders.
 
-## 2. How a delivery sheet works: seven actions
+## 2. The flow
 
-All seven go to the same URL. Six work on a sheet, with its `reference`; `retry` works on
-orders waiting in a depot, with no `reference`. The `action` field says which step it is.
+### The whole day of one sheet
 
 ```
-create ──► add ──► add ──► (remove) ──► collect ──┬──► deliver   (delivered)
- (open)   (load parcels in the depot)     (driver    └──► return    (brought back undelivered)
-                                           leaves)
-                                                     ──► the sheet closes when nothing is still out
+ IN THE DEPOT                          ON THE ROAD                     END OF THE DAY
+ ────────────                          ───────────                     ──────────────
+ create ─► add ─► add ─► (remove) ─►  collect  ─►  deliver   (delivered)
+                                                   return    (brought back)  ─►  the sheet
+                                                                                 closes itself
 ```
 
-1. **`create`** opens the sheet for one depot, one driver and one day (today or
-   tomorrow). You can already put orders on it in the same call.
-2. **`add`** puts orders on it as you prepare the round. They wait in the depot.
-3. **`remove`** takes orders off it before the driver leaves. They stay in the depot.
-4. **`collect`**: the driver takes the parcels. Every order on the sheet goes
-   **out for delivery** (`inTransit`) with the driver. You send only the `reference`.
-5. **`return`**: the driver is back with parcels he couldn't deliver. For each one, you say
-   whether it's **cancelled** (it goes back to the merchant) or not (it will be tried again).
-6. **`deliver`**: the driver delivered these orders.
-7. **`retry`**: orders going back to the merchant (for example after `return` with
-   `cancelled: true`) go to the customer again. Or send `add` with `"retry": true` to do it
-   and put them on a sheet in one call.
+| Step | When | Call | What happens to the order |
+| --- | --- | --- | --- |
+| **1. Open the sheet** | You plan a driver's round for today or tomorrow. | `create` | Nothing yet. The sheet exists, for one depot, one driver, one day. |
+| **2. Load it** | You scan parcels for that driver in the depot. | `add` (any number of times) | Stays `inDepot`, waiting for the driver. |
+| **3. Unload** (if needed) | A parcel won't leave with this driver after all. | `remove` | Stays `inDepot`, off the sheet. |
+| **4. The driver leaves** | The driver takes the parcels. | `collect` | `inTransit`: out for delivery with the driver. |
+| **5a. Delivered** | The driver delivered it. | `deliver` | `delivered`. Counts in the merchant's settlement. |
+| **5b. Brought back** | The driver couldn't deliver it and is back in the depot. | `return` with `cancelled: false` or `true` | `inDepot`. `false`: for another attempt. `true`: going back to the merchant. |
+| **6. Done** | Every order is delivered, returned or removed. | nothing | The sheet **closes itself**. |
 
-When every order on a collected sheet is delivered, returned or removed, **the sheet closes
-on its own**.
+**Every order on a collected sheet must end with `deliver` or `return`.** Until then, the
+merchant sees it as "out for delivery", and the sheet stays open.
 
-Rules that apply to every sheet:
+### When something changes
 
-- **One sheet per driver that hasn't been collected yet.** Collect (or empty) the driver's
-  current sheet before you open the next one.
-- **No limit on the sheet size.** Send up to 500 order ids per `create`, `add` or `remove`
-  call; we handle them in chunks, so the call stays fast.
-- **An order goes on a sheet only when it's ready to leave from that depot.** It must be
-  in that depot, going to the customer, not cancelled, delivered or returned, not on
-  another sheet, and not scheduled for a later day. We don't fix anything for you: each
-  refusal tells you what to do first, for example [Accept In Depot](partner-accept-in-depot.md)
-  or a [transfer](partner-transfers.md).
+| Situation | What you send |
+| --- | --- |
+| A parcel will be tried again tomorrow | `return` with `"cancelled": false`, then `add` it to tomorrow's sheet. |
+| The customer refused it, it goes back to the merchant | `return` with `"cancelled": true`, then send it with [Returns](partner-return.md). |
+| You want to deliver a returned-to-merchant order to the customer after all | `retry` (no `reference`), then `add`. Or both at once: `add` with `"retry": true`. |
+| An order must go with **another driver** | `add` it to the other driver's sheet with `"driverChange": true`. It leaves the first sheet by itself. |
+| An order was cancelled after you loaded it | `collect` leaves it in the depot and lists it in `errors`. `remove` it. |
+| An **exchange** order | `deliver` when the parcels are swapped at the door (the driver keeps the old item), then `return` when the driver brings the old item back. |
+
+### Rules for every sheet
+
+- **One open sheet per driver.** A driver can't get a new sheet while their current one
+  has orders and hasn't been collected.
+- **Up to 500 orders per call**, as many calls as you need. No limit on the sheet size.
+- **An order goes on a sheet only if it's ready to leave from that depot**: in that depot,
+  going to the customer, not cancelled, delivered or returned, not on another sheet, and
+  not scheduled for a later day. We never fix an order for you: each refusal says what to
+  do first.
+- **Every call can be sent again safely.** What's already done counts as done.
 
 ## 3. The request
 
@@ -175,10 +185,32 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | --- | --- | --- |
 | `orderIds` | number[] | Required. 1 to 500 order ids, no duplicates. |
 | `retry` | boolean | Optional. `true`: an order going back to the merchant is sent to the customer again, then put on the sheet. Without it, such an order is refused (`not_for_customer`). |
+| `driverChange` | boolean | Optional. `true`: an order on **another driver's** sheet moves to this sheet and driver. Without it, such an order is refused (`on_other_runsheet` or `out_for_delivery`). |
 
 Each order is handled **on its own**. The valid ones go on the sheet, and the others are
 listed in the answer with the reason (see [section 6](#6-the-response)). You can still
 `add` after `collect` (a late load): that order goes out for delivery at once.
+
+**Changing an order's driver** (`"driverChange": true`):
+
+```json
+{
+  "action": "add",
+  "reference": "LM-2026-000990",
+  "employeeId": 7,
+  "orderIds": [123459],
+  "driverChange": true
+}
+```
+
+- The order must be on another driver's sheet **in the same depot**, either still in the
+  depot (that sheet isn't collected) or out with that driver.
+- It leaves the other sheet and goes on this one:
+  - this sheet **isn't collected**: it waits in the depot (`inDepot`) for the new driver;
+  - this sheet **is collected**: it's out with the new driver at once (`inTransit`).
+- An order the first driver already marked as postponed or refused can't be moved: `return`
+  it first.
+- If the other sheet has nothing left out, it closes itself.
 
 ### `remove`
 
@@ -490,6 +522,7 @@ that id is the first thing we ask for.
 
 | Step | The order | Its timeline |
 | --- | --- | --- |
+| `add` with `driverChange: true` | Leaves the other driver's sheet. Then as `add`: `inDepot`, or `inTransit` with the new driver if this sheet is collected. | "removed from runsheet" (old driver → new driver), then as `add` |
 | `add` (before `collect`) | Stays `inDepot`, on the sheet. If it still had a pick-up or a transfer **planned** (not on the road), that trip is closed as failed: the parcel leaves with this driver. | "mission created" and "set for delivery" |
 | `remove` | Stays `inDepot`, off the sheet. It can go on another sheet. | "removed from runsheet" |
 | `collect`, or `add` after `collect` | `inTransit` (out for delivery) with the sheet's driver. | "picked up" |
@@ -566,10 +599,10 @@ Read the **`error` string**, not just the HTTP status.
 | `not_for_customer` | create, add, collect, deliver | The order is going back to its merchant, not to the customer. | To deliver it to the customer after all: `retry`, or `add` with `"retry": true`. |
 | `scheduled_later` | create, add | The order is scheduled for a later day than the sheet. | Put it on that day's sheet. |
 | `not_in_depot` | create, add, retry | The order isn't in a depot (still on the road, or never arrived). | [Accept it in depot](partner-accept-in-depot.md) first. |
-| `wrong_depot` | create, add | The order is in another depot. | [Transfer it](partner-transfers.md) here first. |
+| `wrong_depot` | create, add | The order is in another depot (with `driverChange`: the other driver's sheet is in another depot). | [Transfer it](partner-transfers.md) here first. |
 | `in_progress_elsewhere` | create, add, retry | A pick-up or a transfer of this order is on the road (for `retry`: anything open on it, e.g. a planned return). | Finish or remove it first. |
-| `out_for_delivery` | create, add, retry | The order is out with a driver on a sheet. | When it comes back, send `return` on that sheet. |
-| `on_other_runsheet` | create, add | The order is on another sheet that hasn't left yet. `message` names that sheet when it's yours. | `remove` it from that sheet first. |
+| `out_for_delivery` | create, add, retry | The order is out with a driver on another sheet. | Send `return` on that sheet when it comes back, or `add` with `"driverChange": true` to give it to this driver (not once it's postponed or refused). |
+| `on_other_runsheet` | create, add | The order is on another driver's sheet that hasn't left yet. `message` names that sheet when it's yours. | `remove` it from that sheet, or `add` with `"driverChange": true`. |
 | `not_on_this_runsheet` | remove, return, deliver | The order isn't on this sheet, or it was already returned from it. | Check the order and the `reference`. |
 | `with_driver` | remove | The driver already has this parcel. | When it comes back, send `return`. |
 | `not_collected` | return, deliver | `collect` left this order in the depot (it changed after you added it). | `remove` it instead. |
@@ -616,6 +649,8 @@ network errors. Every other error gives the same answer the second time.
 | `not_in_depot` on most orders | The parcels weren't accepted in depot with [Accept In Depot](partner-accept-in-depot.md) before going on the sheet. |
 | `409 driver_has_open_runsheet` on `create` | Yesterday's sheet for that driver still has orders and wasn't collected. |
 | `out_for_delivery` when you re-load yesterday's parcels | The driver's undelivered parcels were never sent back with `return` on yesterday's sheet. |
+| `on_other_runsheet` when you give a parcel to another driver | `add` was sent without `"driverChange": true`. |
+| Orders stay "out for delivery" for days | The sheet's orders never got a `deliver` or a `return`. Every collected order needs one. |
 
 Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call.
 
