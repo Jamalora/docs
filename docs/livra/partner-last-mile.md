@@ -17,7 +17,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
-- [2. How a delivery sheet works: six actions](#2-how-a-delivery-sheet-works-six-actions)
+- [2. How a delivery sheet works: seven actions](#2-how-a-delivery-sheet-works-seven-actions)
 - [3. The request](#3-the-request)
   - [`create`](#create)
   - [`add`](#add)
@@ -25,6 +25,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
   - [`collect`](#collect)
   - [`return`](#return)
   - [`deliver`](#deliver)
+  - [`retry`](#retry)
 - [4. How to build `x-signature`](#4-how-to-build-x-signature)
 - [5. Copy-paste examples](#5-copy-paste-examples)
 - [6. The response](#6-the-response)
@@ -65,10 +66,10 @@ You also need these ids from us (we give you the lists):
 > **You do not send your partner id.** We read it from your API key, on purpose: you can
 > only ever work with **your own** depots, drivers and orders.
 
-## 2. How a delivery sheet works: six actions
+## 2. How a delivery sheet works: seven actions
 
-All six go to the same URL, with the same `reference`. The `action` field says which
-step it is.
+All seven go to the same URL. Six work on a sheet, with its `reference`; `retry` works on
+orders waiting in a depot, with no `reference`. The `action` field says which step it is.
 
 ```
 create ──► add ──► add ──► (remove) ──► collect ──┬──► deliver   (delivered)
@@ -86,6 +87,9 @@ create ──► add ──► add ──► (remove) ──► collect ──�
 5. **`return`**: the driver is back with parcels he couldn't deliver. For each one, you say
    whether it's **cancelled** (it goes back to the merchant) or not (it will be tried again).
 6. **`deliver`**: the driver delivered these orders.
+7. **`retry`**: orders going back to the merchant (for example after `return` with
+   `cancelled: true`) go to the customer again. Or send `add` with `"retry": true` to do it
+   and put them on a sheet in one call.
 
 When every order on a collected sheet is delivered, returned or removed, **the sheet closes
 on its own**.
@@ -126,8 +130,8 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `action` | string | Required. `"create"`, `"add"`, `"remove"`, `"collect"`, `"return"` or `"deliver"`. |
-| `reference` | string | Required. **Your** id for the delivery sheet: 1 to 100 characters, letters, digits and `-` `_` `.` `/` only. The same on every call for that sheet. We show it as the sheet's name, prefixed `partner:` (e.g. `partner:LM-2026-000981`). |
+| `action` | string | Required. `"create"`, `"add"`, `"remove"`, `"collect"`, `"return"`, `"deliver"` or `"retry"`. |
+| `reference` | string | Required, except on `retry` (where it's refused). **Your** id for the delivery sheet: 1 to 100 characters, letters, digits and `-` `_` `.` `/` only. The same on every call for that sheet. We show it as the sheet's name, prefixed `partner:` (e.g. `partner:LM-2026-000981`). |
 | `employeeId` | number | Required. Positive whole number. **One of your employees**: the person who did this step. |
 
 - Ids must be **numbers**, not strings. `"123456"` is wrong. `123456` is right.
@@ -154,6 +158,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | `driverId` | number | Required. One of your drivers. |
 | `date` | string | Required. The delivery day, `YYYY-MM-DD`: **today or tomorrow**, Tunis time. |
 | `orderIds` | number[] | Optional. 0 to 500 order ids, no duplicates. It does exactly what an `add` right after would do. |
+| `retry` | boolean | Optional. As on `add`. |
 
 ### `add`
 
@@ -169,6 +174,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | Field | Type | Rules |
 | --- | --- | --- |
 | `orderIds` | number[] | Required. 1 to 500 order ids, no duplicates. |
+| `retry` | boolean | Optional. `true`: an order going back to the merchant is sent to the customer again, then put on the sheet. Without it, such an order is refused (`not_for_customer`). |
 
 Each order is handled **on its own**. The valid ones go on the sheet, and the others are
 listed in the answer with the reason (see [section 6](#6-the-response)). You can still
@@ -267,6 +273,30 @@ send `return` for it.
 
 When nothing on the sheet is still out, the sheet closes: any later call on it answers
 `409 runsheet_closed`.
+
+### `retry`
+
+```json
+{
+  "action": "retry",
+  "employeeId": 7,
+  "orderIds": [123457]
+}
+```
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `orderIds` | number[] | Required. 1 to 500 order ids, no duplicates. |
+
+**No `reference`**: these orders are on no sheet, they wait in a depot.
+
+For orders going **back to the merchant** (for example after `return` with
+`cancelled: true`) that you want to **deliver to the customer** after all. Each one must be
+in a depot, with nothing open on it (not on a sheet, not on a return), and not cancelled,
+delivered or returned. It stays in the depot, now going to the customer: put it on a sheet
+with `add`. The merchant still sees that the order needed attention until they review it.
+
+To do both in one call, send `add` with `"retry": true` instead.
 
 ## 4. How to build `x-signature`
 
@@ -468,6 +498,7 @@ that id is the first thing we ask for.
 | `deliver` | `delivered`. | "dropped off" |
 | `deliver`, exchange order | `inTransit`: the driver brings the old item back. | "exchanged" |
 | `return`, exchange already delivered | `inDepot`, going back to the merchant. | "dropped off" |
+| `retry`, or `add` with `retry: true` | Stays `inDepot`, now going to the customer. | "retry" |
 
 You can read any order back with [Get Order](partner-get-order.md) to see its `status`.
 
@@ -529,15 +560,15 @@ Read the **`error` string**, not just the HTTP status.
 | --- | --- | --- | --- |
 | `order_not_found` | all | No order with this id. | Check the id. |
 | `unauthorized_partner` | all | The order belongs to another delivery partner. | It isn't your order. |
-| `order_cancelled` | create, add, collect, deliver | The order is cancelled. | It can't go out. Take it off your round. |
-| `already_delivered` | create, add, collect, return, deliver | The order was already delivered. | Nothing to do. |
-| `already_returned` | create, add, collect, return, deliver | The order was already returned to the merchant. | Nothing to do. |
-| `not_for_customer` | create, add, collect, deliver | The order is going back to its merchant, not to the customer. | Fix its destination first. |
+| `order_cancelled` | create, add, collect, deliver, retry | The order is cancelled. | It can't go out. Take it off your round. |
+| `already_delivered` | create, add, collect, return, deliver, retry | The order was already delivered (for `retry`, an exchange already swapped too). | Nothing to do. |
+| `already_returned` | create, add, collect, return, deliver, retry | The order was already returned to the merchant. | Nothing to do. |
+| `not_for_customer` | create, add, collect, deliver | The order is going back to its merchant, not to the customer. | To deliver it to the customer after all: `retry`, or `add` with `"retry": true`. |
 | `scheduled_later` | create, add | The order is scheduled for a later day than the sheet. | Put it on that day's sheet. |
-| `not_in_depot` | create, add | The order isn't in a depot (still on the road, or never arrived). | [Accept it in depot](partner-accept-in-depot.md) first. |
+| `not_in_depot` | create, add, retry | The order isn't in a depot (still on the road, or never arrived). | [Accept it in depot](partner-accept-in-depot.md) first. |
 | `wrong_depot` | create, add | The order is in another depot. | [Transfer it](partner-transfers.md) here first. |
-| `in_progress_elsewhere` | create, add | A pick-up or a transfer of this order is on the road. | Finish it first. |
-| `out_for_delivery` | create, add | The order is out with a driver on another sheet. | When it comes back, send `return` on that sheet. |
+| `in_progress_elsewhere` | create, add, retry | A pick-up or a transfer of this order is on the road (for `retry`: anything open on it, e.g. a planned return). | Finish or remove it first. |
+| `out_for_delivery` | create, add, retry | The order is out with a driver on a sheet. | When it comes back, send `return` on that sheet. |
 | `on_other_runsheet` | create, add | The order is on another sheet that hasn't left yet. `message` names that sheet when it's yours. | `remove` it from that sheet first. |
 | `not_on_this_runsheet` | remove, return, deliver | The order isn't on this sheet, or it was already returned from it. | Check the order and the `reference`. |
 | `with_driver` | remove | The driver already has this parcel. | When it comes back, send `return`. |
@@ -555,6 +586,7 @@ Lost the answer? Timed out? **Send the same call again.** What is already done c
 - an order already removed from this sheet,
 - an order already returned on this sheet,
 - an order already delivered on this sheet,
+- a `retry` of an order already going to the customer,
 - a `collect` of a sheet already collected (it finishes anything left).
 
 Worth retrying automatically: `busy` (after a short pause), `internal_error` (once), and
@@ -579,7 +611,7 @@ network errors. Every other error gives the same answer the second time.
 | Symptom | Almost always the cause |
 | --- | --- |
 | `401 invalid_signature` on every call | Your HTTP library re-serialized the body after you signed it. Send the raw string. In Python, use `data=`, not `json=`. |
-| `400 invalid_payload` with `Unknown field` | A field that action doesn't take, e.g. `driverId` on `add`. Only `create` takes `depotId`, `driverId` and `date`. |
+| `400 invalid_payload` with `Unknown field` | A field that action doesn't take, e.g. `driverId` on `add`, or `reference` on `retry`. Only `create` takes `depotId`, `driverId` and `date`. |
 | `404 runsheet_not_found` on `add` | The `create` wasn't sent, failed, or used a different `reference` (check the case). |
 | `not_in_depot` on most orders | The parcels weren't accepted in depot with [Accept In Depot](partner-accept-in-depot.md) before going on the sheet. |
 | `409 driver_has_open_runsheet` on `create` | Yesterday's sheet for that driver still has orders and wasn't collected. |
