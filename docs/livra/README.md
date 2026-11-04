@@ -225,9 +225,11 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 ### Update: exchange after pickup
 
-An order the driver has already collected can still become an **exchange**, or an exchange can go back to a **regular** order, until it is delivered: in a depot (`inDepot`), between depots or out for delivery (`inTransit`).
+An order the driver has already collected can still become an **exchange**, at any status up to delivered or returned. This is how Livra corrects swaps for customers whose first order another delivery company delivered: the swap was created as a regular order, and the driver did an exchange at the door. An exchange can also go back to a **regular** order while the parcel is still on its way to the customer.
 
-Make it an exchange:
+The order's predecessor (`oldOrderId`) is an **external exchange** placeholder standing for the first sale: `delivered`, `source: externalExchange`, with no contract or partner, and the products to retrieve as its products. It is never picked up, invoiced or sent to a webhook feed, and the merchant is not notified of it.
+
+Make it an exchange, before the driver reaches the customer (`inDepot`, or `inTransit` to a depot or to the customer):
 
 ```json
 {
@@ -237,21 +239,52 @@ Make it an exchange:
 }
 ```
 
-Make it a regular order again:
+Correct an order the driver has already been to the door with: say what happened there, and where the things travelling back are now:
+
+```json
+{
+  "orderId": 1234,
+  "isExchange": true,
+  "productsToRetrieve": [{ "name": "T-shirt M", "quantity": 1 }],
+  "exchangeOutcome": "happened",
+  "itemsAt": "depot",
+  "depotId": 12
+}
+```
+
+Make it a regular order again (only before the door):
 
 ```json
 { "orderId": 1234, "isExchange": false }
 ```
 
+| Field | When | Meaning |
+|---|---|---|
+| `exchangeOutcome` | **required** once the order is `delivered`, on its way back to the merchant, or `returned`; **refused** before that | `happened`: the customer swapped. `declined`: the customer refused, the new parcel goes back. |
+| `itemsAt` | optional, only with `exchangeOutcome`; default `driver` | Where the things travelling back are now (the old products, or the refused parcel): `driver`, `depot` or `merchant`. Used for `delivered` orders. |
+| `depotId` | required when `itemsAt` is `depot` | One of your depots. |
+
+What each case does:
+
+| The order is | You send | It becomes |
+|---|---|---|
+| `inDepot`, `inTransit` to the customer, waiting for a retry | no outcome | An exchange: the driver swaps or records the refusal at the door, as for any exchange. Status unchanged. |
+| `delivered` | `happened`, `itemsAt: driver` | On its way back to the merchant (`inTransit`) with the old products. Ends `exchange-complete`, billed as an exchange. |
+| `delivered` | `happened`, `itemsAt: depot` | `inDepot` in that depot, then back to the merchant. Ends `exchange-complete`. |
+| `delivered` | `happened`, `itemsAt: merchant` | `exchange-complete` now, billed as an exchange. |
+| `delivered` | `declined` (`driver` / `depot`) | Not delivered after all (`deliveryDate` cleared), on its way back (`inTransit` / `inDepot`). Ends `exchange-returned`, billed as a return. |
+| `delivered` | `declined`, `itemsAt: merchant` | `exchange-returned` now, billed as a return. |
+| on its way back to the merchant | `declined` | Still on its way; ends `exchange-returned` (same return fee). |
+| `returned` | `declined` | `exchange-returned` now (same return fee). |
+
 - It needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. With any other key, an order past its pickup is refused with `order_update_not_permitted`, as before.
 - Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), can't be changed this way.
-- Only `isExchange` and `productsToRetrieve` are accepted, and `productsToRetrieve` only with `isExchange: true`. Any other field is rejected with `order_update_not_permitted`, and nothing changes.
-- `productsToRetrieve` lists what the driver collects from the customer at delivery. Without it, the driver collects one `unknown` product. On an order that is already an exchange, sending it replaces the list.
-- With `isExchange: true`, the order is handled as an exchange from then on: its delivery follows the exchange flow, and the driver collects the products to retrieve at the door. It is billed as an exchange.
-- With `isExchange: false`, an exchange goes back to a regular delivery: the products to retrieve are dropped, the driver no longer collects anything, and it is billed as a delivery. On an order that is already regular it changes nothing.
-- The order's history shows the change: who made it, when, and the order's status at that moment.
-- **The slip on the parcel becomes outdated** either way: the products to retrieve are part of the slip hash. The response carries the new `hash`; the next depot scan of the old slip asks for a reprint, as after any change to an order in the network.
-- Once the order is delivered, returned (or on its way back to the merchant) or cancelled, it is refused with a clear error, see below.
+- After the pickup only `isExchange`, `productsToRetrieve`, `exchangeOutcome`, `itemsAt` and `depotId` are accepted. Any other field is rejected with `order_update_not_permitted`, and nothing changes.
+- `productsToRetrieve` lists what the customer gives back. Without it, one `unknown` product. Before the door, on an order that is already an exchange, sending it replaces the list.
+- An order whose fee is already paid (settled with Livra, or paid to the merchant) can't be corrected: `order_already_settled`.
+- The order's history shows the change: who made it, when, its status before and after, and the outcome.
+- Your own correction is not sent back to your webhook feed (merchant webhooks still fire).
+- **The slip on the parcel becomes outdated**: the products to retrieve are part of the slip hash. The response carries the new `hash`; the next depot scan of the old slip asks for a reprint.
 
 ### Update: success
 
@@ -263,14 +296,21 @@ Make it a regular order again:
 - **400** one of:
   - `order_not_found`
   - `order_update_not_permitted`: the order isn't `readyForPickUp` and the request isn't an exchange after pickup (see above), or its status allows neither (e.g. `missing`).
-  - `order_already_delivered`: exchange after pickup refused, the order was already handed to the customer.
-  - `order_already_returned`: exchange after pickup refused, the order is returned, or on its way back to the merchant.
-  - `order_cancelled`: exchange after pickup refused, the order is cancelled.
-  - `order_managed_in_merchant_app`: exchange after pickup refused, the order was made in the merchant app.
-  - `order_outsourced`: exchange after pickup refused, the order has been handed over to another delivery partner.
+  - `order_already_delivered`: `isExchange: false` refused, the order was already handed to the customer.
+  - `order_already_returned`: `isExchange: false` refused, the order is returned, or on its way back to the merchant.
+  - `order_already_exchange`: the order is already an exchange past the door (or finished as one); it can be corrected only once.
+  - `order_already_settled`: the order's fee is already paid; it can't be corrected.
+  - `exchange_outcome_required`: the order is past the door (delivered, on its way back, returned); send `exchangeOutcome`.
+  - `exchange_outcome_not_allowed`: the order hasn't reached the customer yet; leave `exchangeOutcome` out.
+  - `exchange_outcome_not_possible`: `happened` on an order that never reached the customer (on its way back, or returned).
+  - `depot_not_found`: `depotId` isn't one of your depots.
+  - `order_cancelled`: the order is cancelled.
+  - `order_managed_in_merchant_app`: the order was made in the merchant app.
+  - `order_outsourced`: the order has been handed over to another delivery partner.
+  - Field errors, e.g. `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
   - plus all create-order 400 errors
 
-  These exchange refusals, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "order_already_delivered", "orderStatus": "delivered" }`. Don't retry them.
+  These exchange refusals, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "exchange_outcome_required", "orderStatus": "delivered" }`. Don't retry them.
 - **401** missing/invalid auth headers/signature
 - **409** `order_busy`: the order was being changed at the same moment (e.g. a driver scanning it). Retry once after a second.
 - **500** internal error
