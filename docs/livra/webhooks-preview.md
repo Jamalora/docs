@@ -146,7 +146,7 @@ These events carry a `change_request` key describing the request:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `change_request.id` | string | The request's id. Use it to match the event to the request you sent. |
+| `change_request.id` | string | The request's id: the `id` that [Change Request](README.md#change-request) returned when you sent it. Use it to match the event to your request. |
 | `change_request.requestType` | string | The change's `type` when the request has one change (e.g. `AMOUNT_CHANGE`), `MULTIPLE_CHANGES` when it has several. |
 | `change_request.source` | string \| null | Who made the request: `DELIVERY_PARTNER` (you) or `MERCHANT`. |
 | `change_request.changes` | array | `{ type, newValue }` for each requested change, with the same types and values as in the [request body](README.md#change-request). |
@@ -155,7 +155,9 @@ These events carry a `change_request` key describing the request:
   decision, not the order's.
 - Fires once per decision. Creating a request, or replacing a pending one with
   a new request, sends nothing.
-- Sent for every request on your orders, whoever made it.
+- Sent for every request on your orders, whoever made it. A request made by the
+  merchant (`source: "MERCHANT"`) has an `id` you have never seen.
+- A request you replaced with a new one is never decided, so it gets no event.
 - `changes` holds the **new** values only. On `change_request.rejected` they
   were **not** applied.
 - `changes` is always an array, and can be empty for a request that carries no

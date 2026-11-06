@@ -479,7 +479,8 @@ Create Order and Update Order already return the same `hash` in their responses;
 
 ### Success
 
-- **201**: `{ "ok": true }`
+- **201**: `{ "ok": true, "id": "<uuid>" }`
+  - `id` is the new request's id. Keep it: the decision webhook carries it as `change_request.id`, so you can match the decision to this request.
 
 ### Errors
 
