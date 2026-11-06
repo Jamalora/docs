@@ -499,6 +499,8 @@ Create Order and Update Order already return the same `hash` in their responses;
 - **401** missing/invalid auth headers/signature
 - **500** internal error
 
+When the request is approved or rejected, your delivery-partner feed receives `change_request.approved` or `change_request.rejected`. See [Change request events](webhooks-preview.md#change-request-events).
+
 ## Order status webhooks
 
 Livra sends order webhooks through two separate channels, each with its own format:
@@ -526,6 +528,8 @@ The raw event payload as recorded by the platform. Each delivery represents one 
 This feed does **not** receive the changes you make yourself through the partner APIs ([Accept In Depot](partner-accept-in-depot.md), [Transfers](partner-transfers.md), [Returns](partner-return.md)): you already know about them. Changes made on our side still reach you.
 
 This feed also receives a `status.changed` as soon as an order becomes a Livra order: when it is created as `readyForPackaging` or `readyForPickUp`, or when its contract is switched to Livra. See [New orders for Livra](webhooks-preview.md#new-orders-for-livra).
+
+It also receives `order_type.changed` when our depot changes a parcel's size ([Size changes](webhooks-preview.md#size-changes)), and `change_request.approved` / `change_request.rejected` when a change request is decided ([Change request events](webhooks-preview.md#change-request-events)).
 
 Full documentation: [Livra Webhooks — Advanced](webhooks-preview.md)
 

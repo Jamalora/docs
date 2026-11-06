@@ -5,19 +5,21 @@
 The advanced webhook delivers a rich, **uniform** snapshot of the order on every
 event. The `data` object has the **same shape for every event type** — the only
 things that vary between events are the `event` name, which optional sections are
-populated (`driver`, `depot`, `mission`, `settlement`), and the contents of
-`previous`. Parse one shape, handle every event.
+populated (`driver`, `depot`, `mission`, `settlement`), the contents of
+`previous`, and the extra `current` or `change_request` key that two events add.
+Parse one shape, handle every event.
 
 ## Event catalogue
 
-Three families of events: **order events**, driven by changes on the shipping
+Four families of events: **order events**, driven by changes on the shipping
 order; **driver events**, driven by driver actions during last-mile delivery;
-and **invoice events**, driven by settlement.
+**invoice events**, driven by settlement; and **change request events**, driven
+by our decision on a [change request](README.md#change-request).
 
 ### Order events
 
-Emitted when any of `status`, `finalDestination`, `currentPosition`, or
-`deliveryDate` changes on the order.
+Emitted when any of `status`, `finalDestination`, `currentPosition`,
+`deliveryDate`, or the parcel size changes on the order.
 
 | `event`                 | Fires when                 |
 | ----------------------- | -------------------------- |
@@ -25,10 +27,11 @@ Emitted when any of `status`, `finalDestination`, `currentPosition`, or
 | `destination.changed`   | `finalDestination` changed |
 | `position.updated`      | `currentPosition` changed  |
 | `delivery_date.changed` | `deliveryDate` changed     |
+| `order_type.changed`    | the parcel size changed — see [Size changes](#size-changes) |
 
 Only **one** order event is emitted per update. If multiple tracked fields
 change in the same update, the first match in this priority order wins:
-`status` > `finalDestination` > `currentPosition` > `deliveryDate`. The full
+`status` > `finalDestination` > `currentPosition` > `deliveryDate` > size. The full
 `data` snapshot is identical regardless of which field triggered the event — use
 `previous` to see exactly what changed.
 
@@ -51,6 +54,39 @@ you hear about it before its first status change:
   receive a single `status.changed` with the real `previous.status`.
 - These events are sent on the **delivery-partner feed** only (the callback URL
   configured for your delivery partner), not to a per-order `callback_link`.
+
+#### Size changes
+
+`order_type.changed` is emitted when our depot changes the size of one of your
+parcels, for example after measuring it at a scan (only while the order is
+`inDepot` or `inTransit`). The size decides which of the merchant's contract
+prices applies, so use this event to keep your copy of the size, and the fee
+that depends on it, up to date.
+
+```json
+{
+  "event": "order_type.changed",
+  "order_id": 1234,
+  "timestamp": "2026-11-05T10:15:00Z",
+  "data": { "...": "same uniform shape" },
+  "previous": { "size": "small" },
+  "current": { "size": "large" }
+}
+```
+
+- `previous.size` is the size before the change, `current.size` the size after.
+  `current` is present on this event only.
+- `size` is one of `small`, `medium`, `large`, `extra_large`: the same names as
+  [`size` in Create Order](README.md#create-order). Treat an unknown value
+  gracefully, as for [`status`](#status).
+- `data` does not contain the size; read it from `current`.
+- Fires only when the size actually changes. Scanning a parcel again with the
+  size it already has sends nothing.
+- Not sent for a change you made yourself.
+- Sent on the **delivery-partner feed** only, not to a per-order `callback_link`.
+- Applying the same event twice is harmless: it sets a size. If two changes
+  arrive out of order after retries, ignore an event whose `timestamp` is older
+  than the last one you applied for that order.
 
 ### Driver events
 
@@ -76,6 +112,55 @@ Emitted when the delivery partner settles the invoice associated with an order.
 | `invoice.settled` | `settlementDeliverypartner` is set for the first time — fires once per order, not on re-settlements. |
 
 On an invoice event, the `settlement` section is populated.
+
+### Change request events
+
+Emitted when a [change request](README.md#change-request) on one of your orders
+is decided on our side.
+
+| `event`                   | Fires when                                                   |
+| ------------------------- | ------------------------------------------------------------ |
+| `change_request.approved` | the request went from `pending` to `approved`: its changes are applied |
+| `change_request.rejected` | the request went from `pending` to `rejected`: nothing is applied       |
+
+These events carry a `change_request` key describing the request:
+
+```json
+{
+  "event": "change_request.approved",
+  "order_id": 1234,
+  "timestamp": "2026-11-04T10:00:00Z",
+  "data": { "...": "same uniform shape, already showing the applied values (e.g. the new amount)" },
+  "previous": { "status": "pending" },
+  "change_request": {
+    "id": "0f6c1d2e-0000-4000-8000-000000000001",
+    "requestType": "MULTIPLE_CHANGES",
+    "source": "DELIVERY_PARTNER",
+    "changes": [
+      { "type": "PHONE_CHANGE", "newValue": "51111111" },
+      { "type": "AMOUNT_CHANGE", "newValue": 125.5 }
+    ]
+  }
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `change_request.id` | string | The request's id. Use it to match the event to the request you sent. |
+| `change_request.requestType` | string | The change's `type` when the request has one change (e.g. `AMOUNT_CHANGE`), `MULTIPLE_CHANGES` when it has several. |
+| `change_request.source` | string \| null | Who made the request: `DELIVERY_PARTNER` (you) or `MERCHANT`. |
+| `change_request.changes` | array | `{ type, newValue }` for each requested change, with the same types and values as in the [request body](README.md#change-request). |
+
+- `previous` is `{ "status": "pending" }`: the request's status before the
+  decision, not the order's.
+- Fires once per decision. Creating a request, or replacing a pending one with
+  a new request, sends nothing.
+- Sent for every request on your orders, whoever made it.
+- `changes` holds the **new** values only. On `change_request.rejected` they
+  were **not** applied.
+- `changes` is always an array, and can be empty for a request that carries no
+  values (e.g. turning an exchange back into a regular order).
+- Sent on the **delivery-partner feed** only, not to a per-order `callback_link`.
 
 ## Request format
 
@@ -105,6 +190,10 @@ Every event uses the same envelope:
   "previous": { ... }
 }
 ```
+
+Two events add one key: `order_type.changed` adds `current` (see
+[Size changes](#size-changes)), and `change_request.*` add `change_request` (see
+[Change request events](#change-request-events)). Ignore keys you don't use.
 
 - `order_id` is the shipping order id returned by [Create Order](README.md#create-order).
 - `timestamp` is when the event was detected on the platform, in UTC ISO 8601.
@@ -301,6 +390,8 @@ Its shape depends on the event family:
 | `status.changed` for a [new Livra order](#new-orders-for-livra) | `{ status: null, finalDestination: null, currentPosition: null, deliveryDate: null }` — there is no earlier state. |
 | Driver events | `{ missionStatus }` — the mission's prior status. |
 | `invoice.settled` | `{ settlementDate: null }` — settlement always transitions from unset. |
+| `order_type.changed` | `{ size }` — the size before the change. The new size is in `current`. |
+| `change_request.*` | `{ status: "pending" }` — the request's status before the decision. |
 
 A driver event, for example:
 
