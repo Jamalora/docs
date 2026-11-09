@@ -8,7 +8,7 @@ right now.
 
 You get the order's content (recipient, products, amount, size, …), where it is in its
 journey (`status`, `finalDestination`, `scheduledDeliveryDate`, `deliveryDate`,
-`returnedDate`), who has it and where (`mission`, `driver`, `depot`, the same objects as in
+`returnedDate`), who has it and where (`mission`, `driver`, `depot`, the same shape as in
 your webhooks), its exchange link, and the current slip `hash` for printing the QR code.
 
 It only reads. Calling it never changes the order, so you can call it as often as you need.
@@ -300,7 +300,7 @@ Every response — success or failure — also carries an **`x-request-id`** hea
 `deliveryDate` and `returnedDate` are ISO-8601 in UTC, e.g. `"2026-10-02T09:30:00.000Z"`.
 Convert to local time (Tunisia is UTC+1) before showing them to an agent.
 
-**Who has it, and where** — the same `mission`, `driver` and `depot` objects as in your
+**Who has it, and where** — `mission`, `driver` and `depot` have the same shape as in your
 webhooks' `data`:
 
 | Field | Type | Meaning |
