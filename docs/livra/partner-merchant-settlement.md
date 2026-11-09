@@ -17,6 +17,11 @@ Dentex merchant settlement console:
 from the orders, with the same rules as the console. If the two differ, we record
 **nothing** and send you our figures line by line, so you can find the difference.
 
+**Paid the merchant anyway?** If you paid a merchant on your platform after we refused
+the settlement (for example `amount_mismatch`), tell us which orders you paid with
+`"action": "flag"`. We record no payment, but our finance team sees those orders as
+**paid on Livra**, with your figures next to ours. See [section 11](#11-you-paid-without-us-flag-and-unflag).
+
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
@@ -31,6 +36,7 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 - [8. Retries and duplicates](#8-retries-and-duplicates)
 - [9. Checklist before you go live](#9-checklist-before-you-go-live)
 - [10. Common mistakes](#10-common-mistakes)
+- [11. You paid without us: flag and unflag](#11-you-paid-without-us-flag-and-unflag)
 
 ---
 
@@ -100,6 +106,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | `amount` | number | yes | The **net** you paid the merchant, after fees and retenue. Must match ours to the cent. Can be negative (for example a batch of cancellations only). |
 | `employeeId` | number | yes | The employee who made the settlement (your `agentId`). Any of your employees. |
 | `dryRun` | boolean | no | `true` computes and returns everything, and records **nothing**. Default: `false`. |
+| `action` | string | no | `settle` (default: everything on this page up to section 10), `flag` or `unflag` ([section 11](#11-you-paid-without-us-flag-and-unflag)). Leave it out to settle, as before. |
 
 - Ids and amounts must be **numbers**, not strings. `"12"` is wrong. `12` is right.
 - Extra fields you add are ignored, they don't break anything.
@@ -352,7 +359,7 @@ string**, not just the HTTP status.
 | **400** | `orders_missing_subcontract` | `orderIds` | A `medium`, `large` or `extra_large` order whose contract has no sous-contrat for that size, so we can't price it. | Contact us. Retry once the sous-contrat exists. |
 | **400** | `orders_with_multiple_open_lines` | `orderIds` | A data problem on our side for these orders. | Contact us. |
 | **409** | `orders_already_settled` | `orderIds`, `paymentIds` | Already paid in **another** settlement. `paymentIds` can be empty for orders settled long ago, before payment ids existed. | **Don't retry.** Reconcile with `paymentIds`. |
-| **422** | `amount_mismatch` | `totals`, `lines` (ours) | Our computation differs from your `amount`. **Nothing was recorded.** | Compare line by line, then send the corrected settlement. |
+| **422** | `amount_mismatch` | `totals`, `lines` (ours) | Our computation differs from your `amount`. **Nothing was recorded.** | Compare line by line, then send the corrected settlement. If you pay the merchant your amount anyway, **flag** the orders ([section 11](#11-you-paid-without-us-flag-and-unflag)). |
 
 ### Busy, or our side
 
@@ -409,5 +416,138 @@ tries. Every other error gives the same answer the second time.
 
 Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call and, if one
 was recorded, the `paymentId`.
+
+## 11. You paid without us: flag and unflag
+
+Sometimes you pay a merchant on your platform even though we refused the settlement,
+most often with `422 amount_mismatch`. Then **tell us which orders you paid**, with
+`"action": "flag"`, on the same URL, with the same headers and signature.
+
+What a flag does:
+
+- **No payment is recorded in Mofavo.** The orders stay unsettled on our side.
+- Our finance team sees them as **paid on Livra, not yet in Mofavo**, with **your figures
+  next to ours**, order by order, to find where the two differ.
+- They settle those orders later, with our amounts. **You are not asked to pay the
+  merchant again** for them.
+- The flag is recorded **even when your figures differ from ours**: that's what it's for.
+
+### Flag: the body
+
+```json
+{
+  "action": "flag",
+  "merchantId": 12,
+  "employeeId": 482,
+  "amount": 158.96,
+  "orders": [
+    { "orderId": 101, "net": 93, "withholding": 2.79 },
+    { "orderId": 102, "net": 75, "withholding": 2.25 },
+    { "orderId": 103, "net": -4, "withholding": 0 }
+  ],
+  "dryRun": false
+}
+```
+
+| Field | Type | Required | Rules |
+| --- | --- | --- | --- |
+| `action` | string | yes | `flag`. |
+| `merchantId` | number | yes | The merchant you paid. Every order must belong to it. |
+| `employeeId` | number | yes | The employee who made the payment (your `agentId`). |
+| `amount` | number | yes | The total you paid the merchant. **Must equal the sum of `net` minus the sum of `withholding`**, to the cent, or you get `400 invalid_payload`. |
+| `orders` | object[] | yes | 1 to 500 orders, **no repeats**. |
+| `orders[].orderId` | number | yes | One of your orders, delivered, returned or exchanged, **not yet settled** in Mofavo. |
+| `orders[].net` | number | yes | Your net for this order, **before** the 3%: what it adds to the merchant's money (negative for a return). Same meaning as our `lines[].net`. |
+| `orders[].withholding` | number | no | The 3% you withheld on this order. `0` or left out when none. |
+| `dryRun` | boolean | no | `true` returns the comparison and records **nothing**. |
+
+There is no `method` and no `orderIds` field on a flag: the orders are in `orders`.
+
+### Flag: the response
+
+**HTTP 200**, with your figures and ours:
+
+```json
+{
+  "ok": true,
+  "action": "flag",
+  "dryRun": false,
+  "duplicate": false,
+  "merchantId": 12,
+  "totals": { "livra": 158.96, "ours": 159.08, "difference": -0.12 },
+  "lines": [
+    { "orderId": 101, "livra": { "net": 93, "withholding": 2.79 }, "ours": { "net": 93, "withholding": 2.79 }, "difference": 0 },
+    { "orderId": 102, "livra": { "net": 75, "withholding": 2.25 }, "ours": { "net": 75, "withholding": 2.25 }, "difference": 0 },
+    { "orderId": 103, "livra": { "net": -4, "withholding": 0 }, "ours": { "net": -4, "withholding": -0.12 }, "difference": -0.12 }
+  ]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `totals.livra` | Your `amount`. |
+| `totals.ours` | What we would pay for the same orders (the `totals.amount` of a settlement). `null` if we can't price one of them. |
+| `totals.difference` | `livra − ours`. |
+| `lines[].ours` | Our net and our share of the 3% for that order. `null` when we can't price it, with `ourError` saying why (for example `orders_missing_subcontract`). The order is **still flagged**. |
+| `lines[].difference` | Your `net − withholding` minus ours, for that order. |
+| `duplicate` | `true` when these orders were already flagged with exactly the same figures: nothing new was recorded. |
+
+In this example, the difference is the return (order 103): its fee lowers the 3% base, so
+our share of the 3% on it is −0.12.
+
+### Unflag
+
+Flagged an order by mistake? Remove the flag:
+
+```json
+{
+  "action": "unflag",
+  "merchantId": 12,
+  "employeeId": 482,
+  "orderIds": [103],
+  "reason": "added by mistake"
+}
+```
+
+| Field | Type | Required | Rules |
+| --- | --- | --- | --- |
+| `action` | string | yes | `unflag`. |
+| `merchantId` | number | yes | The merchant of the orders. |
+| `employeeId` | number | yes | Who removes the flag. |
+| `orderIds` | number[] | yes | 1 to 500 flagged orders, no repeats. |
+| `reason` | string | no | Why, up to 500 characters. |
+
+Response, **HTTP 200**:
+
+```json
+{ "ok": true, "action": "unflag", "merchantId": 12, "orderIds": [103] }
+```
+
+To **change** the figures of a flagged order, unflag it, then flag it again.
+
+### Settling flagged orders
+
+A normal settlement (no `action`) of flagged orders is **allowed**: if you and we later
+agree on the amount, settle them as usual. They become paid in Mofavo and are no longer
+shown as flagged.
+
+### Flag and unflag errors
+
+Authentication errors, `invalid_payload`, `employee_not_found`, `settlement_in_progress`
+and `internal_error` work exactly as in [section 7](#7-every-error-and-what-to-do-about-it).
+Also:
+
+| Status | `error` | Also returned | What it means | What to do |
+| --- | --- | --- | --- | --- |
+| **400** | `orders_not_found` | `orderIds` | Not your orders, or they don't exist. | Check the ids. |
+| **400** | `orders_of_another_merchant` | `orderIds` | These belong to a different merchant. | One call per merchant. |
+| **400** | `orders_not_settleable` | `orderIds` | Not delivered, returned or exchanged yet. | Flag them once they are. |
+| **400** | `orders_with_multiple_open_lines` | `orderIds` | A data problem on our side for these orders. | Contact us. |
+| **409** | `orders_already_settled` | `orderIds` | Already paid in Mofavo: there is nothing to flag (or unflag). | **Don't retry.** |
+| **409** | `orders_already_flagged` | `orderIds` | Already flagged, with different figures or in another call. Nothing was recorded. | Unflag them first if the figures changed. |
+| **409** | `orders_not_flagged` | `orderIds` | Unflag of orders that aren't flagged. Nothing was changed. | Check the ids. |
+
+A flag or unflag is **all or nothing**: if one order is refused, nothing is recorded for
+the others. Retrying an identical flag is safe (`duplicate: true`).
 
 [← Back to Livra integration guide](README.md)
