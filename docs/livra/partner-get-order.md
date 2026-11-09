@@ -6,9 +6,10 @@ This page is for **delivery partners**. It explains one endpoint:
 `POST /partner_get_order`, which reads back **one of your own orders** as it is stored
 right now.
 
-You get the order's content (recipient, products, amount, …), where it is in its journey
-(`status`, `finalDestination`, `deliveryDate`, `returnedDate`), its exchange link, and the
-current slip `hash` for printing the QR code.
+You get the order's content (recipient, products, amount, size, …), where it is in its
+journey (`status`, `finalDestination`, `scheduledDeliveryDate`, `deliveryDate`,
+`returnedDate`), who has it and where (`mission`, `driver`, `depot`, the same shape as in
+your webhooks), its exchange link, and the current slip `hash` for printing the QR code.
 
 It only reads. Calling it never changes the order, so you can call it as often as you need.
 
@@ -225,6 +226,7 @@ curl_close($ch);
   "deliveryPartnerId": 7,
   "status": "inDepot",
   "finalDestination": "primaryRecipient",
+  "size": "small",
   "primaryName": "Ali Ben Salah",
   "primaryPhone": "51111111",
   "primaryPhone2": "",
@@ -235,12 +237,23 @@ curl_close($ch);
   "primaryZipcode": "1000",
   "oldOrderId": null,
   "deliveryInstructions": "",
+  "scheduledDeliveryDate": "2026-10-03",
   "deliveryDate": null,
   "returnedDate": null,
   "amount": 79.5,
   "allowOpen": true,
   "isExchange": false,
   "isFragile": false,
+  "mission": {
+    "id": 1742169,
+    "status": "success",
+    "originType": "sender",
+    "origin": "Promo Shop##Centre Ville##Ksar Hellal##Monastir",
+    "destinationType": "depot",
+    "destination": "Tunis Hub##Rue 9##Tunis##Tunis"
+  },
+  "driver": { "id": 165, "name": "Ala B." },
+  "depot": { "id": 4, "name": "Tunis Hub" },
   "hash": "Xk3pQw"
 }
 ```
@@ -270,6 +283,7 @@ Every response — success or failure — also carries an **`x-request-id`** hea
 | `primaryZipcode` | string | Postal code, or `""`. |
 | `deliveryInstructions` | string | Free-text instructions, or `""`. |
 | `amount` | number | Cash to collect on delivery. |
+| `size` | string | The parcel's size: `small`, `medium`, `large` or `extra_large`, the same names as when you create an order. An order created without a size is `small`. |
 | `allowOpen` | boolean | Whether the customer may open the parcel before paying. |
 | `isFragile` | boolean | Handle with care. |
 
@@ -279,11 +293,25 @@ Every response — success or failure — also carries an **`x-request-id`** hea
 | --- | --- | --- |
 | `status` | string | The order's current status, e.g. `readyForPickUp`, `inDepot`, `inTransit`. Treat it as text and don't fail on a value you don't recognise — new ones can appear. |
 | `finalDestination` | string \| `null` | Where the parcel is heading: `primaryRecipient` (the customer) or `merchant` (on its way back). `null` until set. |
+| `scheduledDeliveryDate` | string \| `null` | The planned delivery day, `YYYY-MM-DD` (a day, no time). `null` if none is set. |
 | `deliveryDate` | string \| `null` | When the parcel was delivered to the customer. `null` until then. |
 | `returnedDate` | string \| `null` | When the parcel's return to the merchant was completed. `null` until then. |
 
-Both dates are ISO-8601 in UTC, e.g. `"2026-10-02T09:30:00.000Z"`. Convert to local time
-(Tunisia is UTC+1) before showing them to an agent.
+`deliveryDate` and `returnedDate` are ISO-8601 in UTC, e.g. `"2026-10-02T09:30:00.000Z"`.
+Convert to local time (Tunisia is UTC+1) before showing them to an agent.
+
+**Who has it, and where** — `mission`, `driver` and `depot` have the same shape as in your
+webhooks' `data`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `mission` | object \| `null` | The order's leg in transit if it has one, otherwise its most recent leg. `null` when the order has no leg yet. |
+| `mission.id` | number | The leg's id. |
+| `mission.status` | string \| `null` | The leg's status: `ready`, `inTransit`, `success`, `fail`, `declined`, `rescheduled`, `blocked` or `incompleted`. Can be `null` on old legs. |
+| `mission.originType`, `mission.destinationType` | string | What the leg starts from and goes to, e.g. `sender`, `depot`, `finalRecipient`. |
+| `mission.origin`, `mission.destination` | string | The two addresses, `##`-separated (`name##street##city##state##zipcode`, empty parts left out). |
+| `driver` | object \| `null` | `{ id, name }`: the driver of that leg. `null` exactly when `mission` is `null`. |
+| `depot` | object \| `null` | `{ id, name }`: the depot of yours the parcel is in, while `status` is `inDepot`. `null` otherwise, and also when the parcel sits somewhere that isn't one of your depots (e.g. an outsourcing location). |
 
 **Exchange and slip:**
 
@@ -325,8 +353,8 @@ So:
 
 - **Call this endpoint right before you print** (or reprint) a slip, and use the `hash`
   it returns. Don't cache hashes.
-- Changes to `status`, the dates, or `finalDestination` never change the hash, since they
-  aren't part of the slip.
+- Changes to `status`, the dates, `finalDestination`, `size`, `mission`, `driver` or
+  `depot` never change the hash, since they aren't part of the slip.
 
 ## 6. Every error, and what to do about it
 
