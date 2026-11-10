@@ -6,6 +6,7 @@ This document describes how to call Livra integration endpoints from your app.
 
 - [Shared authentication headers](#shared-authentication-headers)
 - [Create Merchant](#create-merchant)
+- [Update Merchant](partner-update-merchant.md) (staging only for now)
 - [Create Order](#create-order)
 - [Update Order](#update-order)
 - [Order Hash](#order-hash)
@@ -17,7 +18,6 @@ This document describes how to call Livra integration endpoints from your app.
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
-- [Update Merchant (delivery partners)](partner-update-merchant.md) (staging only for now)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
