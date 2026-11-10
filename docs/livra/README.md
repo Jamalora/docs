@@ -17,6 +17,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
+- [Update Merchant (delivery partners)](partner-update-merchant.md) (staging only for now)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
@@ -28,6 +29,8 @@ This document describes how to call Livra integration endpoints from your app.
 > already paid on your platform, [Returns](partner-return.md) to keep your return
 > sheets (parcels going back to their merchant) in sync, and [Last Mile](partner-last-mile.md)
 > to keep your drivers' delivery sheets in sync, up to the moment they collect the parcels.
+> To change a merchant you created (information, sender, fees, retenue), use
+> [Update Merchant](partner-update-merchant.md) (on staging now, for testing).
 
 ## Shared authentication headers
 
@@ -72,6 +75,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
     "deliveryFee": 12.5,
     "exchangeFee": 4.25,
     "cancellationFee": 3.0,
+    "hasRetenue": true,
     "sizeFees": {
       "medium":      { "deliveryFee": 13.5, "exchangeFee": 5.25, "cancellationFee": 3.0 },
       "large":       { "deliveryFee": 15,   "exchangeFee": 6,    "cancellationFee": 3.0 },
@@ -90,6 +94,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 - Contract fees must be non-negative numbers.
 - `contract.sizeFees` is **optional**. Its keys can only be `medium`, `large` and `extra_large`, and you can send any of them. Each size you send needs all three fees (`deliveryFee`, `exchangeFee`, `cancellationFee`), each a non-negative number.
 - A size you leave out gets no sous-contrat: orders of that size **cannot be settled** until one is added for it. They are not billed at the base fees.
+- `contract.hasRetenue` is **optional** (on staging now, for testing: `https://staging.livra.mofavo.com/create_merchant`; production after your tests). It says whether the 3% retenue à la source applies to this merchant's orders: `true` it applies, `false` it does not, `null` or left out it is decided automatically (the retenue applies when the merchant has no matricule fiscal, a TRN with letters such as `1935742/N/N/M/000`). Any other value (`"yes"`, `"true"`, `1`) is refused with a **400** `Invalid field in contract: hasRetenue (must be true, false or null)` and nothing is created. [Update Merchant](partner-update-merchant.md) accepts it with the same rules.
 
 ### Success
 
