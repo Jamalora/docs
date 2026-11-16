@@ -124,7 +124,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | Field | Type | Required | Rules |
 | --- | --- | --- | --- |
 | `action` | string | no | `settle` (default) or `pay_fees`. |
-| `driverId` | number | yes | One of your **active** drivers. |
+| `driverId` | number | yes | One of your **active** drivers. Settle a driver **before** you deactivate them: an inactive driver is `driver_not_found`. |
 | `depotId` | number | `settle` | One of your depots: the one that received the cash. Ignored by `pay_fees`. |
 | `orderIds` | number[] | yes, unless `dryRun` | 1 to 500 order ids, **no repeats**, that this driver delivered or tried to deliver. Leave it out in a dry run to list **everything open** (below). |
 | `type` | string | `settle` | `gross` or `net`. Ignored by `pay_fees`. |
@@ -136,6 +136,8 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 - Extra fields you add are ignored, they don't break anything.
 - A known field with the wrong type is rejected, never guessed.
 - **One driver per call.**
+- No permission is checked on the driver or the employee: you already settled in your own
+  tool. They only have to be yours.
 
 ### List everything open
 
