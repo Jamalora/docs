@@ -125,7 +125,7 @@ That's all. **There is no `Authorization` header and no bearer token on this end
 | --- | --- | --- | --- |
 | `action` | string | no | `settle` (default) or `pay_fees`. |
 | `driverId` | number | yes | One of your **active** drivers. Settle a driver **before** you deactivate them: an inactive driver is `driver_not_found`. |
-| `depotId` | number | `settle` | One of your depots: the one that received the cash. Ignored by `pay_fees`. |
+| `depotId` | number | `settle` | One of your depots: the one that received the cash, and one **the driver works for** (assigned to it in Dentex). Ignored by `pay_fees`. |
 | `orderIds` | number[] | yes, unless `dryRun` | 1 to 500 order ids, **no repeats**, that this driver delivered or tried to deliver. Leave it out in a dry run to list **everything open** (below). |
 | `type` | string | `settle` | `gross` or `net`. Ignored by `pay_fees`. |
 | `amount` | number | yes, unless `dryRun` | `settle`: the cash handed over. `pay_fees`: the fees you paid. Must match ours to the cent. A `net` can be negative (only failed deliveries, with a fee). |
@@ -171,7 +171,8 @@ gross = cash collected
 net   = gross − the driver's fees
 ```
 
-- **`settle`** uses the driver's fees as they are **now** in Dentex.
+- **`settle`** uses the driver's fees as they are **now** in Dentex (an old delivery whose
+  fee was already marked paid keeps the fee of that day).
 - **`pay_fees`** uses, for each delivery, the fee that was in force **when its cash was
   handed over**. Changing a driver's fee later never changes what they are owed.
 
@@ -351,6 +352,7 @@ Errors look like `{ "ok": false, "error": "<code>", … }`.
 | 400 | `driver_not_found` | | Not one of your active drivers. |
 | 400 | `driver_contract_missing` | | `settle`: the driver has no fees set in Dentex. Retry once they do. |
 | 400 | `depot_not_found` | | `settle`: not one of your depots. |
+| 400 | `driver_not_in_depot` | | `settle`: the driver isn't assigned to this depot in Dentex. Use the driver's depot, or assign them first. |
 | 400 | `orders_not_found` | `orderIds` | This driver never delivered these orders (or they are not yours). Don't retry. |
 | 400 | `orders_not_settleable` | `orderIds` | `settle`: this driver's delivery of them is not finished. Retry once it is. |
 | 400 | `cash_not_handed_over` | `orderIds` | `pay_fees`: settle the cash of these orders first. |
