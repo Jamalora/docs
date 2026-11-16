@@ -16,6 +16,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Transfers Between Depots (delivery partners)](partner-transfers.md)
 - [Get Order (delivery partners)](partner-get-order.md)
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
+- [Driver Settlement (delivery partners)](partner-driver-settlement.md) (staging only for now)
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
 
@@ -26,7 +27,8 @@ This document describes how to call Livra integration endpoints from your app.
 > the next depot, [Get Order](partner-get-order.md) to read one of your orders back
 > (status, dates, and the slip hash for printing),
 > [Merchant Settlement](partner-merchant-settlement.md) to record a merchant settlement you
-> already paid on your platform, [Returns](partner-return.md) to keep your return
+> already paid on your platform, [Driver Settlement](partner-driver-settlement.md) to record a
+> driver's cash handover or fee payout done in your tool (on staging now, for testing), [Returns](partner-return.md) to keep your return
 > sheets (parcels going back to their merchant) in sync, and [Last Mile](partner-last-mile.md)
 > to keep your drivers' delivery sheets in sync, up to the moment they collect the parcels.
 > To change a merchant you created (information, sender, fees, retenue), use
