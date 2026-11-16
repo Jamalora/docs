@@ -2,6 +2,9 @@
 
 [← Back to Livra integration guide](README.md)
 
+> **Available on staging now, for testing.** Production comes after your tests: we will
+> tell you when it is live. Until then, call the staging URL below.
+
 This page is for **delivery partners**. It explains one endpoint:
 `POST /partner_driver_settlement`, which records a driver settlement **you already did in
 your own tool**.
@@ -73,11 +76,13 @@ You also need, for each settlement:
 
 ## 2. The request
 
-- **URL:** `https://livra.mofavo.com/partner_driver_settlement`
+- **URL (staging):** `https://staging.livra.mofavo.com/partner_driver_settlement`
+- **URL (production, once live):** `https://livra.mofavo.com/partner_driver_settlement`
 - **Method:** `POST`
 
-> **Test on staging first:** `https://staging.livra.mofavo.com/partner_driver_settlement`,
-> with your staging key. A settlement records real data.
+> Staging has its own key and secret (ask `ops@mofavo.com`). Your production key doesn't
+> work on staging, and your staging key doesn't work in production. A settlement records
+> real data, even on staging.
 
 ### Headers
 
@@ -197,6 +202,8 @@ signature fails with `401 Invalid signature`.
 
 ## 5. Copy-paste examples
 
+These call **staging**. Once the endpoint is live, change the host to `livra.mofavo.com`.
+
 ### curl
 
 ```bash
@@ -207,7 +214,7 @@ BODY='{"driverId":318,"depotId":12,"type":"net","employeeId":482,"dryRun":true}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://livra.mofavo.com/partner_driver_settlement \
+curl -X POST https://staging.livra.mofavo.com/partner_driver_settlement \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -226,7 +233,7 @@ export async function driverSettlement(payload) {
   const body = JSON.stringify(payload);
   const signature = crypto.createHmac("sha256", API_SECRET).update(body, "utf8").digest("hex");
 
-  const res = await fetch("https://livra.mofavo.com/partner_driver_settlement", {
+  const res = await fetch("https://staging.livra.mofavo.com/partner_driver_settlement", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -262,7 +269,7 @@ def driver_settlement(payload: dict):
     signature = hmac.new(API_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
 
     res = requests.post(
-        "https://livra.mofavo.com/partner_driver_settlement",
+        "https://staging.livra.mofavo.com/partner_driver_settlement",
         headers={
             "Content-Type": "application/json",
             "x-api-key": API_KEY,
