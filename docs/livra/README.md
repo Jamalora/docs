@@ -190,7 +190,7 @@ One endpoint, two actions on an order:
 
 | Action | Body | What it does |
 |---|---|---|
-| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup: the recipient's address and phones and the parcel's `size`, until the order is delivered, returned or cancelled (staging only for now); and switching it to an exchange or back to a regular order (`isExchange`). |
+| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup: the recipient's address and phones and the parcel's `size`, until the order is delivered, returned or cancelled; and switching it to an exchange or back to a regular order (`isExchange`). |
 | **Cancel** | `"action": "cancel"` | Cancels the order before the driver collects it. |
 
 If your API key is bound to a delivery partner, both actions reach only that partner's orders; any other order is answered with `order_not_found`, the same as one that doesn't exist.
@@ -227,15 +227,13 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 - `orderId` must exist.
 - While the order is `readyForPickUp`, every field above can change.
-- *(Staging only for now.)* The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
+- The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
 - After the pickup, the only other change is the exchange switch: see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
-- `size` (staging only for now) is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order.
+- `size` is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order.
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
 
 ### Update: address, phones and size after pickup
-
-> **On staging only for now** (`https://staging.livra.mofavo.com/update_order`), for testing. On production, these fields still change only while the order is `readyForPickUp`, and `size` is not accepted on Update yet.
 
 Until the order is **delivered, returned or cancelled**, you can correct where it goes, how to reach the customer, and the parcel's size, whatever its status (`inDepot`, `inTransit`, …):
 
