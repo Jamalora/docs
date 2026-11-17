@@ -517,7 +517,8 @@ Create Order and Update Order already return the same `hash` in their responses;
 
 ### Success
 
-- **201**: `{ "ok": true }`
+- **201**: `{ "ok": true, "id": "<uuid>" }` *(the `id` is on staging only for now)*
+  - `id` is the change request's id. Keep it: it's how you approve or reject this request later (see [Approve or reject a request](#approve-or-reject-a-request)). It is the same `change_request.id` the `change_request.approved` / `change_request.rejected` webhooks carry.
 
 ### Errors
 
@@ -534,6 +535,53 @@ Create Order and Update Order already return the same `hash` in their responses;
     - `changes[0].newValue is in the past (today is 2026-10-02)`
     - `changes[0].newValue.primaryStreet is not an address field (use street, zone, city, state, zipcode)`
     - `changes[1] repeats AMOUNT_CHANGE from changes[0]`
+- **401** missing/invalid auth headers/signature
+- **500** internal error
+
+### Approve or reject a request
+
+> **On staging only for now** (`https://staging.livra.mofavo.com/change_request`), for testing. On production, the create response is still `{ "ok": true }` and `action` is not accepted yet.
+
+When the merchant's request was decided on your platform, send the decision so the order is updated on our side too. Same URL and authentication; the body carries an `action` instead of `changes`:
+
+```json
+{ "action": "approve", "id": "6f1c2a9e-3b7d-4c41-9e2a-0d5b8f7a1c34", "employeeId": 107 }
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `action` | yes | `approve` applies the requested changes to the order; `reject` applies nothing. |
+| `id` | yes | The request's `id` from the create response. |
+| `employeeId` | no | **Our** id of your employee who decided (the same id the settlement webhooks send as `agentId`). We show their name in the order history. |
+| `employeeName` | no | Their name, used when `employeeId` is unknown to us. |
+
+Only these four keys are accepted with an `action`. It needs a **delivery partner's key**, and reaches only that partner's orders.
+
+**Rules**
+
+- You can decide a request that is **pending**, that was filed **for a merchant** (through this API, or by the merchant in our app), on **one of your orders**, while the order is **`inDepot` or `inTransit`**, and its exchange has not already happened at the door.
+- **The first decision wins.** Your team can still decide the same request in the dashboard. Whichever decision lands first is final; the other one gets "already decided" and changes nothing.
+- Approving applies the changes exactly as a dashboard approval does (for `ADDRESS_CHANGE`, `null` or `""` fields are ignored; `makeRegular` turns the order back into a regular one).
+- The `change_request.approved` / `change_request.rejected` webhook is sent **once**, whichever side decided, including when you did.
+- The order's history records the decision, who made it (your employee's name, or "Partner API"), and when.
+
+**Success**
+
+- **200**: `{ "ok": true, "id": "<uuid>", "status": "approved" | "rejected", "hash": "<string>" }`
+  - `hash` is the order's slip hash after the decision. An approved address or phone change changes it: reprint the slip.
+
+**Errors**
+
+- **409** `change_request_not_pending`: the request was already decided, e.g. `{ "ok": false, "error": "change_request_not_pending", "status": "approved" }`. If `status` is the decision you sent, your earlier call went through (for example a retry after a timeout): treat it as done. Otherwise the request was decided the other way, in the dashboard.
+- **409** `order_busy`: the order was being changed at the same moment (e.g. a driver scanning it). Retry once after a second.
+- **400** one of:
+  - `change_request_not_found`: no such request, it was replaced by a newer request on the same order, or it isn't on one of your orders.
+  - `change_request_source_not_allowed`: the request was filed by a driver or from the delivery app; those are for the merchant to decide.
+  - `order_status_not_eligible_for_change_request`: the order is no longer `inDepot` / `inTransit` (carries `orderStatus`).
+  - `exchange_already_completed_change_request_not_allowed`: the exchange already happened at the door (carries `orderStatus`).
+  - `no_applicable_changes`: `approve` on a request with nothing the order can take.
+  - Field errors: `Invalid field: action (must be approve or reject)`, `Missing or invalid field: id (must be a uuid)`, `Unexpected field with action: <key>`, `Invalid field: employeeId (must be a positive integer)`, `Invalid field: employeeName (must be a string)`.
+- **403** `partner_scope_not_configured`: the API key isn't bound to a delivery partner.
 - **401** missing/invalid auth headers/signature
 - **500** internal error
 
