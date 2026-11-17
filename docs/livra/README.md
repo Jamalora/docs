@@ -517,7 +517,7 @@ Create Order and Update Order already return the same `hash` in their responses;
 
 ### Success
 
-- **201**: `{ "ok": true, "id": "<uuid>" }` *(the `id` is on staging only for now)*
+- **201**: `{ "ok": true, "id": "<uuid>" }`
   - `id` is the change request's id. Keep it: it's how you approve or reject this request later (see [Approve or reject a request](#approve-or-reject-a-request)). It is the same `change_request.id` the `change_request.approved` / `change_request.rejected` webhooks carry.
 
 ### Errors
@@ -539,8 +539,6 @@ Create Order and Update Order already return the same `hash` in their responses;
 - **500** internal error
 
 ### Approve or reject a request
-
-> **On staging only for now** (`https://staging.livra.mofavo.com/change_request`), for testing. On production, the create response is still `{ "ok": true }` and `action` is not accepted yet.
 
 When the merchant's request was decided on your platform, send the decision so the order is updated on our side too. Same URL and authentication; the body carries an `action` instead of `changes`:
 
