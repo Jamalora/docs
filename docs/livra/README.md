@@ -190,7 +190,7 @@ One endpoint, two actions on an order:
 
 | Action | Body | What it does |
 |---|---|---|
-| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup, only switching it to an exchange or back to a regular order (`isExchange`), until it is delivered. |
+| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup: the recipient's address and phones and the parcel's `size`, until the order is delivered, returned or cancelled (staging only for now); and switching it to an exchange or back to a regular order (`isExchange`). |
 | **Cancel** | `"action": "cancel"` | Cancels the order before the driver collects it. |
 
 If your API key is bound to a delivery partner, both actions reach only that partner's orders; any other order is answered with `order_not_found`, the same as one that doesn't exist.
@@ -218,7 +218,8 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
   "amount": 12.5,
   "allowOpen": true,
   "isExchange": false,
-  "isFragile": false
+  "isFragile": false,
+  "size": "small"
 }
 ```
 
@@ -226,9 +227,39 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 - `orderId` must exist.
 - While the order is `readyForPickUp`, every field above can change.
-- After the pickup, see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
+- *(Staging only for now.)* The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
+- After the pickup, the only other change is the exchange switch: see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
+- `size` (staging only for now) is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order.
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
+
+### Update: address, phones and size after pickup
+
+> **On staging only for now** (`https://staging.livra.mofavo.com/update_order`), for testing. On production, these fields still change only while the order is `readyForPickUp`, and `size` is not accepted on Update yet.
+
+Until the order is **delivered, returned or cancelled**, you can correct where it goes, how to reach the customer, and the parcel's size, whatever its status (`inDepot`, `inTransit`, …):
+
+- **Address:** `primaryStreet`, `primaryZone`, `primaryCity`, `primaryState`, `primaryZipcode`
+- **Phones:** `primaryPhone`, `primaryPhone2`
+- **Size:** `size`
+
+```json
+{
+  "orderId": 1234,
+  "primaryStreet": "Rue de Marseille 12",
+  "primaryCity": "Tunis",
+  "primaryState": "Tunis",
+  "primaryPhone": "22123456",
+  "size": "large"
+}
+```
+
+- The API checks the order on **every call**. The order counts as finished when its status says so (`delivered`, `exchange-complete`, `returned`, `exchange-returned`, `cancelled`) **or** when it has a delivery, return or cancellation date. A finished order is refused with **400** `order_already_delivered`, `order_already_returned` or `order_cancelled`, with its `orderStatus`, and nothing changes.
+- The same checks as Create Order: `primaryPhone`, `primaryCity` and `primaryState` can't be empty, and `size` must be one of the four sizes.
+- After the pickup it needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), are refused (`order_managed_in_merchant_app`, `order_outsourced`).
+- You can send these fields together with an exchange switch. Any other field after the pickup (name, amount, products, instructions, …) is still rejected with `order_update_not_permitted`.
+- The order's history shows each change (the size as the order type), who made it, when, and the order's status at that moment.
+- **The slip on the parcel becomes outdated** when the address or a phone changes: they are part of the slip hash. The response carries the new `hash`; the next depot scan of the old slip asks for a reprint. `size` is not part of the hash.
 
 ### Update: exchange after pickup
 
@@ -286,7 +317,7 @@ What each case does:
 
 - It needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. With any other key, an order past its pickup is refused with `order_update_not_permitted`, as before.
 - Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), can't be changed this way.
-- After the pickup only `isExchange`, `productsToRetrieve`, `exchangeOutcome`, `itemsAt` and `depotId` are accepted. Any other field is rejected with `order_update_not_permitted`, and nothing changes.
+- After the pickup only `isExchange`, `productsToRetrieve`, `exchangeOutcome`, `itemsAt` and `depotId` are accepted, besides the address, phones and size (see [above](#update-address-phones-and-size-after-pickup)). Any other field is rejected with `order_update_not_permitted`, and nothing changes.
 - `productsToRetrieve` lists what the customer gives back. Without it, one `unknown` product. Before the door, on an order that is already an exchange, sending it replaces the list.
 - An order whose fee is already paid (settled with Livra, or paid to the merchant) can't be corrected: `order_already_settled`.
 - The order's history shows the change: who made it, when, its status before and after, and the outcome.
@@ -302,22 +333,22 @@ What each case does:
 
 - **400** one of:
   - `order_not_found`
-  - `order_update_not_permitted`: the order isn't `readyForPickUp` and the request isn't an exchange after pickup (see above), or its status allows neither (e.g. `missing`).
-  - `order_already_delivered`: `isExchange: false` refused, the order was already handed to the customer.
-  - `order_already_returned`: `isExchange: false` refused, the order is returned, or on its way back to the merchant.
+  - `order_update_not_permitted`: the order isn't `readyForPickUp` and the request carries a field that can't change after pickup (see above), or its status allows none (e.g. `missing`).
+  - `order_already_delivered`: the order was already handed to the customer (by status or delivery date): no address, phone or size change, and no `isExchange: false`.
+  - `order_already_returned`: the order is returned (by status or return date): no address, phone or size change. Also `isExchange: false` on an order on its way back to the merchant.
   - `order_already_exchange`: the order is already an exchange past the door (or finished as one); it can be corrected only once.
   - `order_already_settled`: the order's fee is already paid; it can't be corrected.
   - `exchange_outcome_required`: the order is past the door (delivered, on its way back, returned); send `exchangeOutcome`.
   - `exchange_outcome_not_allowed`: the order hasn't reached the customer yet; leave `exchangeOutcome` out.
   - `exchange_outcome_not_possible`: `happened` on an order that never reached the customer (on its way back, or returned).
   - `depot_not_found`: `depotId` isn't one of your depots.
-  - `order_cancelled`: the order is cancelled.
+  - `order_cancelled`: the order is cancelled (by status or cancellation date).
   - `order_managed_in_merchant_app`: the order was made in the merchant app.
   - `order_outsourced`: the order has been handed over to another delivery partner.
-  - Field errors, e.g. `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
+  - Field errors, e.g. `Invalid field: size (must be one of small, medium, large, extra_large)`, `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
   - plus all create-order 400 errors
 
-  These exchange refusals, and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "exchange_outcome_required", "orderStatus": "delivered" }`. Don't retry them.
+  These refusals (finished order, merchant-app, outsourced, exchange), and `order_update_not_permitted` for an exchange after pickup, also carry the order's current `orderStatus`, e.g. `{ "ok": false, "error": "exchange_outcome_required", "orderStatus": "delivered" }`. Don't retry them.
 - **401** missing/invalid auth headers/signature
 - **409** `order_busy`: the order was being changed at the same moment (e.g. a driver scanning it). Retry once after a second.
 - **500** internal error
