@@ -6,7 +6,7 @@ This document describes how to call Livra integration endpoints from your app.
 
 - [Shared authentication headers](#shared-authentication-headers)
 - [Create Merchant](#create-merchant)
-- [Update Merchant](partner-update-merchant.md) (staging only for now)
+- [Update Merchant](partner-update-merchant.md)
 - [Create Order](#create-order)
 - [Update Order](#update-order)
 - [Order Hash](#order-hash)
@@ -32,7 +32,7 @@ This document describes how to call Livra integration endpoints from your app.
 > sheets (parcels going back to their merchant) in sync, and [Last Mile](partner-last-mile.md)
 > to keep your drivers' delivery sheets in sync, up to the moment they collect the parcels.
 > To change a merchant you created (information, sender, fees, retenue), use
-> [Update Merchant](partner-update-merchant.md) (on staging now, for testing).
+> [Update Merchant](partner-update-merchant.md).
 
 ## Shared authentication headers
 
@@ -96,7 +96,7 @@ Creates a merchant with its sender and its contract and, optionally, the contrac
 - Contract fees must be non-negative numbers.
 - `contract.sizeFees` is **optional**. Its keys can only be `medium`, `large` and `extra_large`, and you can send any of them. Each size you send needs all three fees (`deliveryFee`, `exchangeFee`, `cancellationFee`), each a non-negative number.
 - A size you leave out gets no sous-contrat: orders of that size **cannot be settled** until one is added for it. They are not billed at the base fees.
-- `contract.hasRetenue` is **optional** (on staging now, for testing: `https://staging.livra.mofavo.com/create_merchant`; production after your tests). It says whether the 3% retenue à la source applies to this merchant's orders: `true` it applies, `false` it does not, `null` or left out it is decided automatically (the retenue applies when the merchant has no matricule fiscal, a TRN with letters such as `1935742/N/N/M/000`). Any other value (`"yes"`, `"true"`, `1`) is refused with a **400** `Invalid field in contract: hasRetenue (must be true, false or null)` and nothing is created. [Update Merchant](partner-update-merchant.md) accepts it with the same rules.
+- `contract.hasRetenue` is **optional**. It says whether the 3% retenue à la source applies to this merchant's orders: `true` it applies, `false` it does not, `null` or left out it is decided automatically (the retenue applies when the merchant has no matricule fiscal, a TRN with letters such as `1935742/N/N/M/000`). Any other value (`"yes"`, `"true"`, `1`) is refused with a **400** `Invalid field in contract: hasRetenue (must be true, false or null)` and nothing is created. [Update Merchant](partner-update-merchant.md) accepts it with the same rules.
 
 ### Success
 

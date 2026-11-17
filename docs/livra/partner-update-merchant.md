@@ -2,9 +2,6 @@
 
 [← Back to Livra integration guide](README.md)
 
-> **Available on staging now, for testing.** Production comes after your tests: we will
-> tell you when it is live. Until then, call the staging URL below.
-
 This page is for **delivery partners**. It explains one endpoint: `POST /update_merchant`,
 which updates a merchant you created with [Create Merchant](README.md#create-merchant):
 its information, its sender and its contract (fees, sous-contrats per size, 3% retenue).
@@ -38,8 +35,8 @@ are updated**, the others are not touched.
 
 ## 2. The request
 
-- **URL (staging):** `https://staging.livra.mofavo.com/update_merchant`
-- **URL (production, once live):** `https://livra.mofavo.com/update_merchant`
+- **URL (production):** `https://livra.mofavo.com/update_merchant`
+- **URL (staging, for testing):** `https://staging.livra.mofavo.com/update_merchant`
 - **Method:** `POST`
 
 ### Headers
@@ -151,12 +148,12 @@ that same string as the body.
 Change only the contract's fees and the retenue:
 
 ```bash
-API_KEY="your-staging-api-key"
-API_SECRET="your-staging-api-secret"
+API_KEY="your-api-key"
+API_SECRET="your-api-secret"
 BODY='{"merchantId":123,"contract":{"deliveryPartnerId":77,"deliveryFee":7.5,"exchangeFee":5,"cancellationFee":4,"hasRetenue":true}}'
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" -hex | sed 's/^.* //')
 
-curl -s -X POST "https://staging.livra.mofavo.com/update_merchant" \
+curl -s -X POST "https://livra.mofavo.com/update_merchant" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -186,6 +183,8 @@ Every error is `{ "ok": false, "error": "<code or message>" }`. Nothing is chang
 | 403 | `partner_scope_not_configured` | This key is not linked to a delivery partner. | Use your delivery partner key, or ask `ops@mofavo.com`. |
 | 404 | `merchant_not_found` | No such merchant, or it has no active contract with you. | Check `merchantId`. |
 | 500 | `internal_error` | Our side failed. Nothing was changed. | Retry later; contact us if it persists. |
+
+On staging, use your staging key and secret and `https://staging.livra.mofavo.com/update_merchant`.
 
 Sending the same update twice is safe: the second call changes nothing.
 
