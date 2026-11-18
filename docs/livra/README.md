@@ -229,7 +229,7 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 - While the order is `readyForPickUp`, every field above can change.
 - *(Staging only for now.)* The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
 - After the pickup, the only other change is the exchange switch: see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
-- `size` (staging only for now) is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order.
+- `size` (staging only for now) is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order. `medium`, `large` and `extra_large` need a sous-contrat for that size on the order's contract; without one the update is refused with **400** `size_not_in_contract` and nothing changes. `small` always works (the contract's base fees).
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
 
@@ -345,6 +345,7 @@ What each case does:
   - `order_cancelled`: the order is cancelled (by status or cancellation date).
   - `order_managed_in_merchant_app`: the order was made in the merchant app.
   - `order_outsourced`: the order has been handed over to another delivery partner.
+  - `size_not_in_contract` *(staging only for now)*: the order's contract has no sous-contrat (price) for the `size` sent. Ask Mofavo to add one to the merchant's contract, or keep the current size.
   - Field errors, e.g. `Invalid field: size (must be one of small, medium, large, extra_large)`, `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
   - plus all create-order 400 errors
 
@@ -567,8 +568,9 @@ Only these four keys are accepted with an `action`. It needs a **delivery partne
 
 **Success**
 
-- **200**: `{ "ok": true, "id": "<uuid>", "status": "approved" | "rejected", "hash": "<string>" }`
-  - `hash` is the order's slip hash after the decision. An approved address or phone change changes it: reprint the slip.
+- **200**: `{ "ok": true, "id": "<uuid>", "status": "approved" | "rejected", "skipped": [<string>, …], "hash": "<string>" | null }`
+  - `skipped` lists the requested changes that were **not** applied. An approve can be partial: the request is approved and every other change is applied, but these weren't. Values: the change type when the order can't take it (e.g. `"FOO_CHANGE"`), `"AMOUNT_CHANGE:not-a-number"` when the new amount isn't a number, `"DELIVERY_DATE_CHANGE:not-a-date"` when the new date isn't a date. An empty list means everything was applied; it is always empty on `reject`.
+  - `hash` is the order's slip hash after the decision. An approved address or phone change changes it: reprint the slip. In the rare case it can't be computed, `hash` is `null` but the decision **is saved**: don't retry the decision, fetch the hash with [Order Hash](#order-hash) instead.
 
 **Errors**
 
