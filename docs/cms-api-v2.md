@@ -33,15 +33,15 @@ Every v2 route checks, in this order, and answers the first failure:
 
 | Status | `error` | When |
 |---|---|---|
-| 403 | `Missing API key` || No `x-mofavo-api-key` |
-| 403 | `Invalid API key` || Unknown or inactive key |
-| 401 | `Missing signature` || No `x-mofavo-signature` |
-| 401 | `Invalid signature` || The signature doesn't match the body (wrong secret, a hex digest, a body re-serialized after signing) |
-| 401 | `Missing or invalid Authorization header` || No `Bearer` token |
-| 401 | `Invalid token` || Not a token we issued, or claims missing |
-| 401 | `Token revoked or not found` || Revoked, or not a token of that merchant |
-| 500 | `Misconfigured service` || Our `API_SECRET` is empty (our problem) |
-| 500 | `internal_error` || Anything else on our side |
+| 403 | `Missing API key` | No `x-mofavo-api-key` |
+| 403 | `Invalid API key` | Unknown or inactive key |
+| 401 | `Missing signature` | No `x-mofavo-signature` |
+| 401 | `Invalid signature` | The signature doesn't match the body (wrong secret, a hex digest, a body re-serialized after signing) |
+| 401 | `Missing or invalid Authorization header` | No `Bearer` token |
+| 401 | `Invalid token` | Not a token we issued, or claims missing |
+| 401 | `Token revoked or not found` | Revoked, or not a token of that merchant |
+| 500 | `Misconfigured service` | A problem on our side: contact Mofavo |
+| 500 | `internal_error` | A problem on our side: retry later or contact Mofavo |
 
 Auth errors answer `{ "error": "<message>" }`.
 
