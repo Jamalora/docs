@@ -565,8 +565,9 @@ Only these four keys are accepted with an `action`. It needs a **delivery partne
 
 **Success**
 
-- **200**: `{ "ok": true, "id": "<uuid>", "status": "approved" | "rejected", "hash": "<string>" }`
-  - `hash` is the order's slip hash after the decision. An approved address or phone change changes it: reprint the slip.
+- **200**: `{ "ok": true, "id": "<uuid>", "status": "approved" | "rejected", "skipped": [<string>, …], "hash": "<string>" | null }`
+  - `skipped` lists the requested changes that were **not** applied. An approve can be partial: the request is approved and every other change is applied, but these weren't. Values: the change type when the order can't take it (e.g. `"FOO_CHANGE"`), `"AMOUNT_CHANGE:not-a-number"` when the new amount isn't a number, `"DELIVERY_DATE_CHANGE:not-a-date"` when the new date isn't a date. An empty list means everything was applied; it is always empty on `reject`.
+  - `hash` is the order's slip hash after the decision. An approved address or phone change changes it: reprint the slip. In the rare case it can't be computed, `hash` is `null` but the decision **is saved**: don't retry the decision, fetch the hash with [Order Hash](#order-hash) instead.
 
 **Errors**
 
