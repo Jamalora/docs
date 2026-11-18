@@ -254,6 +254,7 @@ Until the order is **delivered, returned or cancelled**, you can correct where i
 
 - The API checks the order on **every call**. The order counts as finished when its status says so (`delivered`, `exchange-complete`, `returned`, `exchange-returned`, `cancelled`) **or** when it has a delivery, return or cancellation date. A finished order is refused with **400** `order_already_delivered`, `order_already_returned` or `order_cancelled`, with its `orderStatus`, and nothing changes.
 - The same checks as Create Order: `primaryPhone`, `primaryCity` and `primaryState` can't be empty, and `size` must be one of the four sizes.
+- **The governorate (`primaryState`) can't change while the parcel is `inTransit`**: the parcel is on the road to the old governorate's depot and would not be re-routed. Such an update is refused with **400** `governorate_change_in_transit` (with `orderStatus`), and nothing changes; send it again once the parcel is `inDepot`. Sending the same governorate again is fine.
 - After the pickup it needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), are refused (`order_managed_in_merchant_app`, `order_outsourced`).
 - You can send these fields together with an exchange switch. Any other field after the pickup (name, amount, products, instructions, …) is still rejected with `order_update_not_permitted`.
 - The order's history shows each change (the size as the order type), who made it, when, and the order's status at that moment.
@@ -343,6 +344,7 @@ What each case does:
   - `order_cancelled`: the order is cancelled (by status or cancellation date).
   - `order_managed_in_merchant_app`: the order was made in the merchant app.
   - `order_outsourced`: the order has been handed over to another delivery partner.
+  - `governorate_change_in_transit`: a new `primaryState` while the parcel is `inTransit`. Wait until it is `inDepot`.
   - `size_not_in_contract`: the order's contract has no sous-contrat (price) for the `size` sent. Ask Mofavo to add one to the merchant's contract, or keep the current size.
   - Field errors, e.g. `Invalid field: size (must be one of small, medium, large, extra_large)`, `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
   - plus all create-order 400 errors
