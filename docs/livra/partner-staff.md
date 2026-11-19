@@ -152,7 +152,7 @@ BODY='{"action":"create","role":"employee","externalId":"LIV-EMP-0007","firstNam
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
-curl -X POST https://livra.mofavo.com/partner_staff \
+curl -X POST https://staging.livra.mofavo.com/partner_staff \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -H "x-signature: $SIGNATURE" \
@@ -167,7 +167,7 @@ import crypto from "node:crypto";
 async function callStaff(payload) {
   const body = JSON.stringify(payload);
   const signature = crypto.createHmac("sha256", process.env.API_SECRET).update(body, "utf8").digest("hex");
-  const res = await fetch("https://livra.mofavo.com/partner_staff", {
+  const res = await fetch("https://staging.livra.mofavo.com/partner_staff", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": process.env.API_KEY, "x-signature": signature },
     body, // the SAME string that was signed
@@ -191,7 +191,7 @@ def call_staff(payload: dict):
     body = json.dumps(payload, separators=(",", ":"))
     signature = hmac.new(API_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
     res = requests.post(
-        "https://livra.mofavo.com/partner_staff",
+        "https://staging.livra.mofavo.com/partner_staff",
         headers={"Content-Type": "application/json", "x-api-key": API_KEY, "x-signature": signature},
         data=body,  # data=, NOT json= — json= would re-serialize and break the signature
         timeout=30,
