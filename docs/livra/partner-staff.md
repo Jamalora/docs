@@ -19,10 +19,9 @@ Follow the sections **in order**. Everything you need to copy-paste is here.
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
-- [2. Three actions](#2-three-actions)
+- [2. Two actions](#2-two-actions)
 - [3. The request](#3-the-request)
   - [`create`](#create)
-  - [`update`](#update)
   - [`link`](#link)
 - [4. How to build `x-signature`](#4-how-to-build-x-signature)
 - [5. Copy-paste examples](#5-copy-paste-examples)
@@ -46,14 +45,13 @@ HMAC calculation described in [section 4](#4-how-to-build-x-signature).
 > **You do not send your partner id.** We read it from your API key. You can only ever
 > see and change **your own** drivers and employees.
 
-## 2. Three actions
+## 2. Two actions
 
-All three go to the same URL. The `action` field says which one it is.
+Both go to the same URL. The `action` field says which one it is.
 
 1. **`create`** — add a driver or an employee. We answer **our id** for them: store it
    next to your `externalId`.
-2. **`update`** — change their name or phone.
-3. **`link`** — for people who **already exist** on our side (created before this
+2. **`link`** — for people who **already exist** on our side (created before this
    endpoint): put your `externalId` on our `driverId` or `employeeId`. Do this once for
    each existing person.
 
@@ -82,7 +80,7 @@ x-signature: <see section 4>
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `action` | string | Required. `"create"`, `"update"` or `"link"`. |
+| `action` | string | Required. `"create"` or `"link"`. |
 | `role` | string | Required. `"driver"` or `"employee"`. |
 | `externalId` | string | Required. **Your** id for the person: 1 to 64 characters (spaces at the ends are trimmed), no control characters. Unique among your drivers, and among your employees (a driver and an employee may share one). |
 
@@ -114,15 +112,8 @@ If the email belongs to someone who is **already yours in the other role** (for 
 driver you now create as an employee), the same person gets the new role: no second
 account.
 
-### `update`
-
-```json
-{ "action": "update", "role": "driver", "externalId": "LIV-DRV-0042", "phone": "29999999" }
-```
-
-Send any of `firstName`, `lastName`, `phone`. **Only the fields you send change.** The
-`email` can't be changed. A person whose account is also used outside your company
-(another delivery partner, a merchant) can't be changed here: `shared_account`.
+Name, phone and email are set **once**, at `create`: there is no update. To change them,
+contact us.
 
 ### `link`
 
@@ -204,7 +195,7 @@ def call_staff(payload: dict):
     )
     return res.status_code, res.headers.get("x-request-id"), res.json()
 
-call_staff({"action": "update", "role": "driver", "externalId": "LIV-DRV-0042", "phone": "29999999"})
+call_staff({"action": "link", "role": "employee", "externalId": "LIV-EMP-0003", "employeeId": 7})
 ```
 
 ## 6. The response
@@ -232,10 +223,9 @@ Every other success is **200**.
 | **400** | `invalid_payload` | A field is missing or wrong; `message` names it. | Fix the request. |
 | **401** | `missing_headers` / `invalid_api_key` / `invalid_signature` | Authentication failed. | Check your key and [signing](#4-how-to-build-x-signature). |
 | **403** | `partner_scope_not_configured` | Key not enabled for partner endpoints. | Contact us. |
-| **404** | `staff_not_found` | `update`: no person of yours with this `externalId`. `link`: the id is not one of your drivers / employees. | Check the id; `create` first. |
+| **404** | `staff_not_found` | `link`: the id is not one of your drivers / employees. | Check the id. |
 | **409** | `email_taken` | The email already has an account. If it is already one of your people in this role, the answer carries its `driverId` / `employeeId`. | Same person: `link` that id. Otherwise use another email, or contact us. |
 | **409** | `already_linked` | `link`: the person already has another `externalId`, or your `externalId` is on another person. | Check your mapping. |
-| **409** | `shared_account` | `update` for a person whose account is also used outside your company. | Contact us. |
 | **500** | `internal_error` | Our side; nothing was written. | Retry once, then contact us with the `x-request-id`. |
 
 ## 8. Retries: every call is safe to send again
