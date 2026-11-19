@@ -11,18 +11,18 @@ The other partner endpoints ask for **our** ids: `driverId` on
 endpoint, each time you create a driver or an employee on your side you create them on
 ours in the same moment and get our id back. No more copying ids by hand.
 
-Each person is found by **your own `externalId`**: your id for them.
+Each person is found by **your own `externalId`**: your id for them, which we keep on our
+driver or employee.
 
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
-- [2. Five actions](#2-five-actions)
+- [2. Three actions](#2-three-actions)
 - [3. The request](#3-the-request)
   - [`create`](#create)
   - [`update`](#update)
-  - [`deactivate` and `reactivate`](#deactivate-and-reactivate)
   - [`link`](#link)
 - [4. How to build `x-signature`](#4-how-to-build-x-signature)
 - [5. Copy-paste examples](#5-copy-paste-examples)
@@ -46,25 +46,20 @@ HMAC calculation described in [section 4](#4-how-to-build-x-signature).
 > **You do not send your partner id.** We read it from your API key. You can only ever
 > see and change **your own** drivers and employees.
 
-## 2. Five actions
+## 2. Three actions
 
-All five go to the same URL. The `action` field says which one it is.
+All three go to the same URL. The `action` field says which one it is.
 
 1. **`create`** — add a driver or an employee. We answer **our id** for them: store it
    next to your `externalId`.
-2. **`update`** — change their name or phone, and for a driver what they may do.
-3. **`deactivate`** — switch them off. **Nothing is ever deleted**: their name stays on
-   everything they did. A driver becomes inactive in our console (no longer offered for new
-   work); an employee loses every permission. Your own calls on the other partner
-   endpoints only check that the person is **yours**, not whether they are active: stop
-   sending someone you deactivated.
-4. **`reactivate`** — switch them back on.
-5. **`link`** — for people who **already exist** on our side (created before this
-   endpoint): map your `externalId` to our `driverId` or `employeeId`. Do this once for
+2. **`update`** — change their name or phone.
+3. **`link`** — for people who **already exist** on our side (created before this
+   endpoint): put your `externalId` on our `driverId` or `employeeId`. Do this once for
    each existing person.
 
 People created through this endpoint get **no login** to our apps. They exist so that
-your calls can name them.
+your calls can name them. This endpoint does not change whether someone is active, nor
+their permissions.
 
 ## 3. The request
 
@@ -87,9 +82,9 @@ x-signature: <see section 4>
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `action` | string | Required. `"create"`, `"update"`, `"deactivate"`, `"reactivate"` or `"link"`. |
+| `action` | string | Required. `"create"`, `"update"` or `"link"`. |
 | `role` | string | Required. `"driver"` or `"employee"`. |
-| `externalId` | string | Required. **Your** id for the person: 1 to 64 characters (spaces at the ends are trimmed), no control characters. A driver and an employee may share the same `externalId`. |
+| `externalId` | string | Required. **Your** id for the person: 1 to 64 characters (spaces at the ends are trimmed), no control characters. Unique among your drivers, and among your employees (a driver and an employee may share one). |
 
 Extra fields you add are ignored. A known field with the wrong type is a `400`.
 
@@ -103,9 +98,7 @@ Extra fields you add are ignored. A known field with the wrong type is a `400`.
   "firstName": "Ali",
   "lastName": "Ben Salah",
   "phone": "22123456",
-  "email": "ali.bensalah@livra.tn",
-  "canTransfer": true,
-  "canLastMile": true
+  "email": "ali.bensalah@livra.tn"
 }
 ```
 
@@ -114,10 +107,8 @@ Extra fields you add are ignored. A known field with the wrong type is a `400`.
 | `firstName`, `lastName` | string | Required. 1 to 80 characters. |
 | `phone` | string | Required. 8 to 20 digits or spaces, optional leading `+`. |
 | `email` | string | Required. Must not already belong to another account (see `email_taken`). |
-| `canPickUp`, `canReturn`, `canLastMile`, `canTransfer` | boolean | Drivers only, optional, default `false`. What the driver may do **in our console**. The partner endpoints don't check them. |
-| `registration` | string | Drivers only, optional. Vehicle plate, up to 50 characters. |
 
-An **employee** has only the common fields and starts with **no permissions**.
+The same fields for a driver and an employee.
 
 If the email belongs to someone who is **already yours in the other role** (for example a
 driver you now create as an employee), the same person gets the new role: no second
@@ -126,28 +117,12 @@ account.
 ### `update`
 
 ```json
-{ "action": "update", "role": "driver", "externalId": "LIV-DRV-0042", "phone": "29999999", "canPickUp": true }
+{ "action": "update", "role": "driver", "externalId": "LIV-DRV-0042", "phone": "29999999" }
 ```
 
-Send any of `firstName`, `lastName`, `phone`, and for a driver the four `can…` flags and
-`registration`. **Only the fields you send change.** The `email` can't be changed.
-
-Name and phone can be changed only for people **created through this endpoint**. For a
-person you `link`ed, they are refused with `shared_account`; their driver flags can still
-be changed.
-
-### `deactivate` and `reactivate`
-
-```json
-{ "action": "deactivate", "role": "driver", "externalId": "LIV-DRV-0042" }
-```
-
-```json
-{ "action": "reactivate", "role": "driver", "externalId": "LIV-DRV-0042" }
-```
-
-An employee's permissions are **not** given back on `reactivate`
-(`permissionsRestored: false` in the answer).
+Send any of `firstName`, `lastName`, `phone`. **Only the fields you send change.** The
+`email` can't be changed. A person whose account is also used outside your company
+(another delivery partner, a merchant) can't be changed here: `shared_account`.
 
 ### `link`
 
@@ -156,7 +131,8 @@ An employee's permissions are **not** given back on `reactivate`
 ```
 
 Send `driverId` with `role: "driver"`, `employeeId` with `role: "employee"`. It must be
-one of **your** drivers or employees.
+one of **your** drivers or employees, without an `externalId` yet. Sending the same link
+again is fine.
 
 ## 4. How to build `x-signature`
 
@@ -207,7 +183,7 @@ async function callStaff(payload) {
 
 const { data } = await callStaff({
   action: "create", role: "driver", externalId: "LIV-DRV-0042",
-  firstName: "Ali", lastName: "Ben Salah", phone: "22123456", email: "ali.bensalah@livra.tn", canTransfer: true,
+  firstName: "Ali", lastName: "Ben Salah", phone: "22123456", email: "ali.bensalah@livra.tn",
 });
 // Store data.driverId next to LIV-DRV-0042, and send it as driverId on the other endpoints.
 ```
@@ -228,21 +204,19 @@ def call_staff(payload: dict):
     )
     return res.status_code, res.headers.get("x-request-id"), res.json()
 
-call_staff({"action": "deactivate", "role": "driver", "externalId": "LIV-DRV-0042"})
+call_staff({"action": "update", "role": "driver", "externalId": "LIV-DRV-0042", "phone": "29999999"})
 ```
 
 ## 6. The response
 
 ```json
-{ "ok": true, "role": "driver", "externalId": "LIV-DRV-0042", "driverId": 512, "status": "active", "created": true }
+{ "ok": true, "role": "driver", "externalId": "LIV-DRV-0042", "driverId": 512, "created": true }
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `driverId` / `employeeId` | **Our id** for the person. Send it on the other partner endpoints. |
-| `status` | `"active"` or `"deactivated"`. |
 | `created` | `create` only. `true`: we created the person (**201**). `false`: this `externalId` already existed; nothing was written and you get the same id (**200**). |
-| `permissionsRestored` | Employee `reactivate` only: always `false`. |
 
 Every other success is **200**.
 
@@ -258,18 +232,16 @@ Every other success is **200**.
 | **400** | `invalid_payload` | A field is missing or wrong; `message` names it. | Fix the request. |
 | **401** | `missing_headers` / `invalid_api_key` / `invalid_signature` | Authentication failed. | Check your key and [signing](#4-how-to-build-x-signature). |
 | **403** | `partner_scope_not_configured` | Key not enabled for partner endpoints. | Contact us. |
-| **404** | `staff_not_found` | No person of yours with this `externalId` (or, on `link`, the id is not one of your drivers / employees). | Check the id; `create` first. |
+| **404** | `staff_not_found` | `update`: no person of yours with this `externalId`. `link`: the id is not one of your drivers / employees. | Check the id; `create` first. |
 | **409** | `email_taken` | The email already has an account. If it is already one of your people in this role, the answer carries its `driverId` / `employeeId`. | Same person: `link` that id. Otherwise use another email, or contact us. |
-| **409** | `already_linked` | `link`: the person is already linked to another `externalId`, or your `externalId` to another person. | Check your mapping. |
-| **409** | `staff_deactivated` | `update` on a deactivated person. | `reactivate` first. |
-| **409** | `shared_account` | `update` of name or phone for a person not created through this endpoint. | Change it in our console, or contact us. |
+| **409** | `already_linked` | `link`: the person already has another `externalId`, or your `externalId` is on another person. | Check your mapping. |
+| **409** | `shared_account` | `update` for a person whose account is also used outside your company. | Contact us. |
 | **500** | `internal_error` | Our side; nothing was written. | Retry once, then contact us with the `x-request-id`. |
 
 ## 8. Retries: every call is safe to send again
 
 - A `create` with an `externalId` that exists answers **the same id** (`created: false`).
-- `deactivate` / `reactivate` on a person already in that state, and a `link` already
-  made, answer **200** and change nothing.
+- A `link` already made answers **200** and changes nothing.
 
 So on a timeout, just send the same call again.
 
@@ -278,5 +250,4 @@ So on a timeout, just send the same call again.
 - [ ] On staging: create a driver and an employee, and store the ids you get back.
 - [ ] Use those ids as `driverId` / `employeeId` on another partner endpoint.
 - [ ] `link` every driver and employee that already existed before this endpoint.
-- [ ] Deactivate someone, check the answer says `"deactivated"`, then reactivate them.
 - [ ] Log the `x-request-id` of every call: we need it to help you.
