@@ -19,8 +19,8 @@ This document describes how to call Livra integration endpoints from your app.
 - [Driver Settlement (delivery partners)](partner-driver-settlement.md) (staging only for now)
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
+  - [Validation (delivery partners)](partner-validation.md): where its orders go, and what the driver brings back (staging only for now)
 - [Drivers and Employees (delivery partners)](partner-staff.md) (staging only for now)
-- [Validation (delivery partners)](partner-validation.md) (staging only for now)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:

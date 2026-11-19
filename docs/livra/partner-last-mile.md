@@ -16,10 +16,28 @@ Each sheet is found by **your own `reference`**. You never store an id of ours.
 > [Validation](partner-validation.md), `deliver` to the mission status API. They still work
 > until you have switched.
 
+## Last Mile and Validation together
+
+The two endpoints cover one driver's round. [Last Mile](partner-last-mile.md) builds the sheet and records
+the driver leaving; [Validation](partner-validation.md) decides where each order goes and takes back what
+the driver brings back.
+
+| When | Send |
+| --- | --- |
+| You load parcels for a driver in your depot | Last Mile `create`, `add`, `remove` |
+| The driver leaves with them | Last Mile `collect` |
+| The driver still has a parcel and you decide, after calling the customer, that it goes back to the merchant, or to the customer after all | Validation `return_to_merchant` / `retry` |
+| The driver is back with parcels he couldn't deliver | Validation `return` (`cancelled` per order) |
+| A parcel is back in the depot and you decide again | Validation `retry` (then Last Mile `add` on a new sheet) or `return_to_merchant` (then [Returns](partner-return.md)) |
+| A parcel is delivered | the mission status API |
+
+Same key, same signing, same `employeeId` and order ids on both.
+
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
 
+- [Last Mile and Validation together](#last-mile-and-validation-together)
 - [1. What you need before you start](#1-what-you-need-before-you-start)
 - [2. The flow](#2-the-flow)
   - [The whole day of one sheet](#the-whole-day-of-one-sheet)

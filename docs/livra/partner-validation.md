@@ -17,8 +17,26 @@ It replaces three actions of [Last Mile](partner-last-mile.md): `return`, `retry
 
 Delivering is **not** here: it is a mission status, sent with the mission status API.
 
+## Last Mile and Validation together
+
+The two endpoints cover one driver's round. [Last Mile](partner-last-mile.md) builds the sheet and records
+the driver leaving; [Validation](partner-validation.md) decides where each order goes and takes back what
+the driver brings back.
+
+| When | Send |
+| --- | --- |
+| You load parcels for a driver in your depot | Last Mile `create`, `add`, `remove` |
+| The driver leaves with them | Last Mile `collect` |
+| The driver still has a parcel and you decide, after calling the customer, that it goes back to the merchant, or to the customer after all | Validation `return_to_merchant` / `retry` |
+| The driver is back with parcels he couldn't deliver | Validation `return` (`cancelled` per order) |
+| A parcel is back in the depot and you decide again | Validation `retry` (then Last Mile `add` on a new sheet) or `return_to_merchant` (then [Returns](partner-return.md)) |
+| A parcel is delivered | the mission status API |
+
+Same key, same signing, same `employeeId` and order ids on both.
+
 ## Contents
 
+- [Last Mile and Validation together](#last-mile-and-validation-together)
 - [1. The three actions](#1-the-three-actions)
 - [2. The request](#2-the-request)
 - [3. Rules](#3-rules)
