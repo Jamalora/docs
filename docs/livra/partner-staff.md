@@ -2,6 +2,9 @@
 
 [← Back to Livra integration guide](README.md)
 
+> **Available on staging now, for testing.** Production comes after your tests: we will
+> tell you when it is live. Until then, call the staging URL below.
+
 This page is for **delivery partners**. It explains one endpoint:
 `POST /partner_staff`, which keeps **your drivers and employees** in sync with ours.
 
@@ -61,8 +64,8 @@ their permissions.
 
 ## 3. The request
 
-- **URL (production):** `https://livra.mofavo.com/partner_staff`
 - **URL (staging):** `https://staging.livra.mofavo.com/partner_staff`
+- **URL (production, once live):** `https://livra.mofavo.com/partner_staff`
 - **Method:** `POST`
 
 Build and test against **staging** first. It works the same way, with its own data and
