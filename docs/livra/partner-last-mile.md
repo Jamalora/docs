@@ -12,6 +12,10 @@ orders show the right status and the merchant sees them go out.
 
 Each sheet is found by **your own `reference`**. You never store an id of ours.
 
+> **`return`, `deliver` and `retry` are deprecated.** `return` and `retry` move to
+> [Validation](partner-validation.md), `deliver` to the mission status API. They still work
+> until you have switched.
+
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
@@ -251,6 +255,9 @@ is refused with `400 invalid_payload`.)
 
 ### `return`
 
+> **Deprecated:** send it to [Validation](partner-validation.md) instead, with the same body.
+> This action still works the same way until you have switched.
+
 ```json
 {
   "action": "return",
@@ -283,6 +290,9 @@ item back into the depot: it goes back to the merchant, whatever `cancelled` say
 
 ### `deliver`
 
+> **Deprecated:** delivering moves to the mission status API (`delivered`). This action
+> still works until then. An order going back to the merchant is refused (`not_for_customer`).
+
 ```json
 {
   "action": "deliver",
@@ -309,6 +319,9 @@ after a timeout) is still safe: it answers `ok`.
 
 ### `retry`
 
+> **Deprecated:** send [Validation](partner-validation.md) `destination` with
+> `"cancelled": false` instead. It also works while the order is on the road.
+
 ```json
 {
   "action": "retry",
@@ -324,10 +337,10 @@ after a timeout) is still safe: it answers `ok`.
 **No `reference`**: these orders are on no sheet, they wait in a depot.
 
 For orders going **back to the merchant** (for example after `return` with
-`cancelled: true`) that you want to **deliver to the customer** after all. Each one must be
-in a depot, with nothing open on it (not on a sheet, not on a return), and not cancelled,
-delivered or returned. It stays in the depot, now going to the customer: put it on a sheet
-with `add`. The merchant still sees that the order needed attention until they review it.
+`cancelled: true`) that you want to **deliver to the customer** after all. It is
+[Validation](partner-validation.md) `destination` with `"cancelled": false`: the order must
+be in a depot or on the road, and not cancelled, delivered or returned. Only its
+destination changes: put it on a sheet with `add`. The merchant still sees that the order needed attention until they review it.
 
 To do both in one call, send `add` with `"retry": true` instead.
 
