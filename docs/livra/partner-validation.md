@@ -19,7 +19,7 @@ Delivering is **not** here: it is a mission status, sent with the mission status
 
 ## Contents
 
-- [1. The two actions](#1-the-two-actions)
+- [1. The three actions](#1-the-three-actions)
 - [2. The request](#2-the-request)
 - [3. Rules](#3-rules)
 - [4. Copy-paste example](#4-copy-paste-example)
@@ -28,12 +28,17 @@ Delivering is **not** here: it is a mission status, sent with the mission status
 - [7. Retries: every call is safe to send again](#7-retries-every-call-is-safe-to-send-again)
 - [8. Moving from Last Mile](#8-moving-from-last-mile)
 
-## 1. The two actions
+## 1. The three actions
 
 | Action | What it does |
 | --- | --- |
-| `destination` | For each order: `"cancelled": true` cancels the delivery, the order goes **back to the merchant**. `"cancelled": false` sends it **to the customer again** (a retry). Only the destination changes. Works while the order is in a depot **or on the road**. |
+| `retry` | The orders go **to the customer again**. |
+| `return_to_merchant` | The orders go **back to the merchant**. |
 | `return` | The driver of a collected sheet is back with parcels he couldn't deliver. Per order, `"cancelled": true` (going back to the merchant) or `false` (another attempt). Exactly the [Last Mile `return`](partner-last-mile.md#return): same body, same result. |
+
+`retry` and `return_to_merchant` do, for each order, what our own staff do **for where the
+parcel is**: a quality-control agent while the driver still has it, a depot employee once
+it is back in the depot. You don't say which: we see where the parcel is.
 
 ## 2. The request
 
@@ -57,14 +62,11 @@ The signature is built exactly as for Last Mile: see
 ### Body
 
 ```json
-{
-  "action": "destination",
-  "employeeId": 7,
-  "orders": [
-    { "orderId": 123456, "cancelled": true },
-    { "orderId": 123457, "cancelled": false }
-  ]
-}
+{ "action": "retry", "employeeId": 7, "orderIds": [123457] }
+```
+
+```json
+{ "action": "return_to_merchant", "employeeId": 7, "orderIds": [123456, 123460] }
 ```
 
 ```json
@@ -81,38 +83,38 @@ The signature is built exactly as for Last Mile: see
 
 | Field | Type | Rules |
 | --- | --- | --- |
-| `action` | string | Required. `"destination"` or `"return"`. |
+| `action` | string | Required. `"retry"`, `"return_to_merchant"` or `"return"`. |
 | `employeeId` | number | Required. One of your employees: the person who did it. |
-| `orders` | list | Required. 1 to 500 `{ "orderId", "cancelled" }`, each order once. `cancelled` is required, `true` or `false`. |
-| `reference` | string | `return` only, required: your delivery sheet, as in [Last Mile](partner-last-mile.md). Refused on `destination`. |
+| `orderIds` | list | `retry` and `return_to_merchant`, required. 1 to 500 order ids, each once. |
+| `orders` | list | `return` only, required. 1 to 500 `{ "orderId", "cancelled" }`, each order once. `cancelled` is `true` or `false`. |
+| `reference` | string | `return` only, required: your delivery sheet, as in [Last Mile](partner-last-mile.md). |
 
 Ids are **numbers**, not strings. **Unknown fields are refused** with `400 invalid_payload`,
 and `details.field` names the field.
 
 ## 3. Rules
 
-- **`"cancelled": true`** works like our "return to merchant" button: the order now goes to
-  the merchant. For an exchange, its last mission is marked as declined. Its open quality
-  checks close. **A driver can no longer deliver it**: if the driver still has it, send
-  `return` when he is back.
-- **`"cancelled": false`** works like our "Retry" button: the order goes to the customer
-  again. For an exchange, its missions go back to "exchange in progress". Then put it on a
-  sheet with [Last Mile `add`](partner-last-mile.md#add).
-- `destination` changes **only where the order goes**: not its status, not its sheet, not
-  its missions. A parcel on a transfer keeps going to that depot.
-- It is **accepted** for an order in a depot (`inDepot`) or on the road (`inTransit`).
+| Where the order is | `retry` | `return_to_merchant` |
+| --- | --- | --- |
+| **With the driver**: on a collected sheet (delivery still out, redated or declined) | Like our quality-control "Retry": it goes to the customer again; a declined delivery is back in progress with the driver. | Like our quality-control "Cancel": it goes back to the merchant; the delivery is marked declined, so **the driver can no longer deliver it**. When he is back, send `return`. |
+| **In the depot**, nothing open on it | Like our inbound "Retry": it goes to the customer again. Then put it on a sheet with [Last Mile `add`](partner-last-mile.md#add). | Like our "Return to merchant" button: it goes back to the merchant. |
+| In the depot on a sheet **not collected yet**, or on a **transfer** | Refused: `has_open_mission`. | Refused: `has_open_mission`. |
+
+- **Exchanges:** `return_to_merchant` marks the exchange as declined; `retry` puts its
+  missions back to "exchange in progress".
+- `return_to_merchant` closes the order's open quality checks.
 - It is **refused** for an order cancelled, returned, delivered (an exchange already
   swapped counts), not picked up from the merchant yet, or in any other status (e.g.
   missing).
-- An order **already going where you say**: `ok`, nothing is written.
-- You can mix `true` and `false` in one call.
+- An order **already done** (already going there, nothing left to change): `ok`, nothing
+  is written.
 
 ## 4. Copy-paste example
 
 ```bash
 API_KEY="your-api-key"
 API_SECRET="your-api-secret"
-BODY='{"action":"destination","employeeId":7,"orders":[{"orderId":123456,"cancelled":true}]}'
+BODY='{"action":"return_to_merchant","employeeId":7,"orderIds":[123456]}'
 
 SIGNATURE=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$API_SECRET" | awk '{print $2}')
 
@@ -135,14 +137,16 @@ Some orders refused, **200**. The others **were applied**:
 
 ```json
 { "ok": false, "errors": [
-  { "orderId": 123457, "error": "not_picked_up", "message": "This order has not been picked up from the merchant yet; to cancel it, use update_order with action cancel" } ] }
+  { "orderId": 123460, "error": "has_open_mission", "message": "This order has an open mission (on a sheet not collected yet, or on a transfer); remove it from the sheet or wait for it to arrive" } ] }
 ```
 
-| Action | Order status | Timeline |
-| --- | --- | --- |
-| `destination`, `cancelled: true` | unchanged, now going to the merchant | "scheduled for return to merchant" |
-| `destination`, `cancelled: false` | unchanged, now going to the customer | "retry" |
-| `return` | as [Last Mile `return`](partner-last-mile.md#return) | as Last Mile `return` |
+| Action | Where | Order status | Timeline |
+| --- | --- | --- | --- |
+| `retry` | with the driver | `inTransit`, now going to the customer | "retry" |
+| `retry` | in the depot | `inDepot`, now going to the customer | "retry" |
+| `return_to_merchant` | with the driver | `inTransit`, now going to the merchant | "declined" |
+| `return_to_merchant` | in the depot | `inDepot`, now going to the merchant | "scheduled for return to merchant" |
+| `return` | | as [Last Mile `return`](partner-last-mile.md#return) | as Last Mile `return` |
 
 Each row shows "(via partner API)". These changes are **not** sent to your webhook feed:
 you made them. The merchant's own webhooks still fire.
@@ -154,7 +158,7 @@ Whole call refused, nothing applied: `{ "ok": false, "error": "...", "message": 
 | Status | `error` | What it means | What to do |
 | --- | --- | --- | --- |
 | **400** | `invalid_json` | The body is not JSON. | Fix the request. |
-| **400** | `invalid_payload` | A field is missing, wrong or unknown (e.g. `"action": "deliver"`); `details.field` names it. | Fix the request. |
+| **400** | `invalid_payload` | A field is missing, wrong or unknown (e.g. `"action": "destination"`); `details.field` names it. | Fix the request. |
 | **401** | `missing_headers` / `invalid_api_key` / `invalid_signature` | Authentication failed. | Check your key and signing. |
 | **403** | `partner_scope_not_configured` | Your key is not enabled for partner routes. | Contact us. |
 | **400** | `employee_not_found` | `employeeId` isn't one of your employees. | Check your employee mapping. |
@@ -168,21 +172,22 @@ Per order, in `errors`:
 
 | `error` | Action | What it means → what to do |
 | --- | --- | --- |
-| `order_not_found` | both | No order with this id. |
-| `unauthorized_partner` | both | The order belongs to another delivery partner. |
-| `order_cancelled` | destination | The order is cancelled. |
-| `already_delivered` | both | Already delivered (an exchange already swapped too). |
-| `already_returned` | both | Already returned to the merchant. |
-| `not_picked_up` | destination | Not picked up from the merchant yet. To cancel it, use Update Order with `"action": "cancel"`. |
-| `invalid_status` | destination | Not in a depot or on the road (e.g. missing). |
+| `order_not_found` | all | No order with this id. |
+| `unauthorized_partner` | all | The order belongs to another delivery partner. |
+| `order_cancelled` | retry, return_to_merchant | The order is cancelled. |
+| `already_delivered` | all | Already delivered (an exchange already swapped too). |
+| `already_returned` | all | Already returned to the merchant. |
+| `not_picked_up` | retry, return_to_merchant | Not picked up from the merchant yet. To cancel it, use Update Order with `"action": "cancel"`. |
+| `has_open_mission` | retry, return_to_merchant | On a sheet not collected yet, or on a transfer or pick-up. Remove it from the sheet (Last Mile `remove`), or wait for it to arrive. |
+| `invalid_status` | retry, return_to_merchant | Not in a depot or with a driver (e.g. missing). |
 | `not_on_this_runsheet` | return | Not on this sheet, or already returned from it. |
 | `not_collected` | return | Collect left it in the depot. Use Last Mile `remove`. |
-| `busy` | both | Another call on this order is in flight. Send it again. |
-| `internal_error` | both | Our error on this order. Send it again later. |
+| `busy` | all | Another call on this order is in flight. Send it again. |
+| `internal_error` | all | Our error on this order. Send it again later. |
 
 ## 7. Retries: every call is safe to send again
 
-An order already going where you say, or already returned from the sheet, counts as `ok`
+An order already done, or already returned from the sheet, counts as `ok`
 and is not written twice. A call cut short (timeout) is finished by sending it again.
 
 ## 8. Moving from Last Mile
@@ -190,9 +195,10 @@ and is not written twice. A call cut short (timeout) is finished by sending it a
 | You send today on `partner_last_mile` | Send instead on `partner_validation` |
 | --- | --- |
 | `return` | `return`, same body |
-| `retry` with `orderIds` | `destination` with `orders: [{ "orderId", "cancelled": false }]` |
-| `add` with `"retry": true` | `destination` with `"cancelled": false`, then Last Mile `add` |
+| `retry` with `orderIds` | `retry`, same `orderIds` |
+| `add` with `"retry": true` | `retry`, then Last Mile `add` |
 | `deliver` | the mission status API (`delivered`) |
 
-The old actions still work, the same way, until you have switched. `deliver` refuses an
+The old actions still work until you have switched; Last Mile `retry` now follows the same
+rules as `retry` here. `deliver` refuses an
 order going back to the merchant (`not_for_customer`).

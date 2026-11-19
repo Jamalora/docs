@@ -319,8 +319,7 @@ after a timeout) is still safe: it answers `ok`.
 
 ### `retry`
 
-> **Deprecated:** send [Validation](partner-validation.md) `destination` with
-> `"cancelled": false` instead. It also works while the order is on the road.
+> **Deprecated:** send [Validation](partner-validation.md) `retry` instead, same `orderIds`.
 
 ```json
 {
@@ -338,9 +337,9 @@ after a timeout) is still safe: it answers `ok`.
 
 For orders going **back to the merchant** (for example after `return` with
 `cancelled: true`) that you want to **deliver to the customer** after all. It is
-[Validation](partner-validation.md) `destination` with `"cancelled": false`: the order must
-be in a depot or on the road, and not cancelled, delivered or returned. Only its
-destination changes: put it on a sheet with `add`. The merchant still sees that the order needed attention until they review it.
+[Validation](partner-validation.md) `retry`, with the same rules: with the driver or in the
+depot with nothing open on it, and not cancelled, delivered or returned. Then put it on a
+sheet with `add`. The merchant still sees that the order needed attention until they review it.
 
 To do both in one call, send `add` with `"retry": true` instead.
 
