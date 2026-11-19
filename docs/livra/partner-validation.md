@@ -2,6 +2,10 @@
 
 [← Back to Livra integration guide](README.md)
 
+> **Staging only for now.** This endpoint is live on `https://staging.livra.mofavo.com/partner_validation`
+> for testing. It is not in production yet: until then, keep using [Last Mile](partner-last-mile.md)
+> `return` and `retry` in production.
+
 This page is for **delivery partners**. It explains one endpoint:
 `POST /partner_validation`, which decides **where your orders go**, and takes back the
 parcels a driver brings back to the depot.
