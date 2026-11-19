@@ -54,8 +54,10 @@ All five go to the same URL. The `action` field says which one it is.
    next to your `externalId`.
 2. **`update`** — change their name or phone, and for a driver what they may do.
 3. **`deactivate`** — switch them off. **Nothing is ever deleted**: their name stays on
-   everything they did. A driver can no longer be given parcels; an employee loses every
-   permission.
+   everything they did. A driver becomes inactive in our console (no longer offered for new
+   work); an employee loses every permission. Your own calls on the other partner
+   endpoints only check that the person is **yours**, not whether they are active: stop
+   sending someone you deactivated.
 4. **`reactivate`** — switch them back on.
 5. **`link`** — for people who **already exist** on our side (created before this
    endpoint): map your `externalId` to our `driverId` or `employeeId`. Do this once for
@@ -112,7 +114,7 @@ Extra fields you add are ignored. A known field with the wrong type is a `400`.
 | `firstName`, `lastName` | string | Required. 1 to 80 characters. |
 | `phone` | string | Required. 8 to 20 digits or spaces, optional leading `+`. |
 | `email` | string | Required. Must not already belong to another account (see `email_taken`). |
-| `canPickUp`, `canReturn`, `canLastMile`, `canTransfer` | boolean | Drivers only, optional, default `false`. What the driver may do. A driver needs `canTransfer: true` to be given [transfers](partner-transfers.md). |
+| `canPickUp`, `canReturn`, `canLastMile`, `canTransfer` | boolean | Drivers only, optional, default `false`. What the driver may do **in our console**. The partner endpoints don't check them. |
 | `registration` | string | Drivers only, optional. Vehicle plate, up to 50 characters. |
 
 An **employee** has only the common fields and starts with **no permissions**.
@@ -276,5 +278,5 @@ So on a timeout, just send the same call again.
 - [ ] On staging: create a driver and an employee, and store the ids you get back.
 - [ ] Use those ids as `driverId` / `employeeId` on another partner endpoint.
 - [ ] `link` every driver and employee that already existed before this endpoint.
-- [ ] Deactivate someone, check that a transfer to them is refused, then reactivate them.
+- [ ] Deactivate someone, check the answer says `"deactivated"`, then reactivate them.
 - [ ] Log the `x-request-id` of every call: we need it to help you.
