@@ -19,6 +19,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Driver Settlement (delivery partners)](partner-driver-settlement.md) (staging only for now)
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
+- [Drivers and Employees (delivery partners)](partner-staff.md) (staging only for now)
 
 > **Are you a delivery partner working with your own depots?**
 > Those endpoints have their own pages:
@@ -31,6 +32,8 @@ This document describes how to call Livra integration endpoints from your app.
 > driver's cash handover or fee payout done in your tool (on staging now, for testing), [Returns](partner-return.md) to keep your return
 > sheets (parcels going back to their merchant) in sync, and [Last Mile](partner-last-mile.md)
 > to keep your drivers' delivery sheets in sync, up to the moment they collect the parcels.
+> To create your drivers and employees on our side and get the ids those endpoints need, use
+> [Drivers and Employees](partner-staff.md) (on staging now, for testing).
 > To change a merchant you created (information, sender, fees, retenue), use
 > [Update Merchant](partner-update-merchant.md).
 
