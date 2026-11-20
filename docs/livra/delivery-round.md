@@ -23,6 +23,7 @@ All three use the same API key, the same `x-signature`, the same order ids and t
 
 ## Contents
 
+- [Every action at a glance](#every-action-at-a-glance)
 - [1. Who does what](#1-who-does-what)
 - [2. The round, step by step](#2-the-round-step-by-step)
 - [3. After each driver result: what comes next](#3-after-each-driver-result-what-comes-next)
@@ -31,6 +32,45 @@ All three use the same API key, the same `x-signature`, the same order ids and t
 - [6. The parcel's status at each step](#6-the-parcels-status-at-each-step)
 - [7. Rules that hold everywhere](#7-rules-that-hold-everywhere)
 - [8. Before you go live](#8-before-you-go-live)
+
+## Every action at a glance
+
+Every action of the three APIs, in the order of a round: **what it's for, when you send it,
+where the parcel is, and who does it**. Each name links to its full description (fields,
+rules, errors).
+
+### Last Mile: the sheet (in your depot)
+
+| Action | What it's for | When | Who |
+| --- | --- | --- | --- |
+| [`create`](partner-last-mile.md#create) | Open a driver's round: one depot, one driver, one day (today or tomorrow). You can put parcels on it at once. | You plan the round. | Depot employee |
+| [`add`](partner-last-mile.md#add) | Put parcels on the sheet. With `"retry": true`: a parcel going back to the merchant goes to the customer again first. With `"driverChange": true`: take a parcel from another driver's sheet. | While you load the driver, or later (a late load goes out at once). | Depot employee |
+| [`remove`](partner-last-mile.md#remove) | Take a parcel off the sheet: it won't leave with this driver. | Before `collect` (or for a parcel `collect` left behind). | Depot employee |
+| [`collect`](partner-last-mile.md#collect) | The driver leaves: every parcel on the sheet is out for delivery. | When the driver takes the parcels. | Depot employee |
+
+### Mission Status: the driver's results (on the road, at each customer)
+
+| `status` | What it's for | When | Who |
+| --- | --- | --- | --- |
+| [`delivered`](partner-mission-status.md#delivered) | The customer has the parcel. (Exchange: parcels swapped; the driver brings the old item back.) | At the door. | Driver (your app) |
+| [`unreachable`](partner-mission-status.md#unreachable) | No answer: the driver keeps the parcel; SMS or check for the customer. | At the door. | Driver |
+| [`postponed`](partner-mission-status.md#postponed) | With `date`: the customer wants another day. Without: a comment. | At the door / on the phone. | Driver |
+| [`declined`](partner-mission-status.md#declined) | The customer refused it (`cancelByClient`, `tries` after 3 attempts, or `other` + note). The merchant is asked what to do. | At the door. | Driver |
+| [`wrong_phone`](partner-mission-status.md#wrong_phone) | The phone number is wrong: a check opens. | When calling the customer. | Driver |
+| [`missing`](partner-mission-status.md#missing) | The driver can't find the parcel. | Any time on the road. | Driver |
+| [`reset`](partner-mission-status.md#reset) | Undo the last result (a mistake). | Right after the mistake. | Driver or an employee |
+
+### Validation: decisions, and back in the depot
+
+| Action | What it's for | When / where | Who |
+| --- | --- | --- | --- |
+| [`retry`](partner-validation.md#3-rules) | Send a parcel **to the customer again**. | **With the driver** (e.g. refused, then the customer changes their mind): he can deliver it. **In the depot**: then put it on a sheet with Last Mile `add`. | Customer service, or the depot |
+| [`return_to_merchant`](partner-validation.md#3-rules) | Send a parcel **back to the merchant**. | **With the driver**: he can no longer deliver it; when he's back, `return` it. **In the depot**: then send it with [Returns](partner-return.md). | Customer service, or the depot |
+| [`return`](partner-validation.md#2-the-request) | The driver is back: check in each parcel he couldn't deliver. `cancelled` is the scan button ([§4](#4-the-return-to-the-depot-the-cancelled-scan-button)). | End of the round, **after** each parcel's driver result. | Depot employee |
+
+**Not in these three:** a parcel arriving in the depot ([Accept In Depot](partner-accept-in-depot.md)),
+sending it to another depot ([Transfers](partner-transfers.md)), and the trip back to the
+merchant ([Returns](partner-return.md)).
 
 ## 1. Who does what
 

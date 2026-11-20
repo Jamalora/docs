@@ -10,10 +10,9 @@ This page is for **delivery partners**. It explains one endpoint:
 `POST /partner_validation`, which decides **where your orders go**, and takes back the
 parcels a driver brings back to the depot.
 
-It replaces three actions of [Last Mile](partner-last-mile.md): `return`, `retry` (and
-`add` with `"retry": true` for the destination part), and the way back to the merchant.
+It replaces Last Mile `return` and `retry`, and adds `return_to_merchant`.
 [Last Mile](partner-last-mile.md) keeps the sheet itself: `create`, `add`, `remove`,
-`collect`.
+`collect`. How the three APIs fit in one round: [Delivery Round](delivery-round.md).
 
 Delivering is **not** here: it is a driver result, sent with [Mission Status](partner-mission-status.md) (`delivered`).
 
@@ -40,11 +39,18 @@ order ids on all three.
 
 ## 1. The three actions
 
-| Action | What it does |
-| --- | --- |
-| `retry` | The orders go **to the customer again**. |
-| `return_to_merchant` | The orders go **back to the merchant**. |
-| `return` | The driver of a collected sheet is back with parcels he couldn't deliver, once their result was sent ([Mission Status](partner-mission-status.md)). The result decides where each goes (refused → merchant); `cancelled` is our depot's scan button: `false` for an order going to the customer (a refused one included), `true` for one already going to the merchant. Exactly the [Last Mile `return`](partner-last-mile.md#return): same body, same rules. |
+| Action | What it does | When / where | Who | Then |
+| --- | --- | --- | --- | --- |
+| `retry` | The parcel goes **to the customer again**. | **With the driver** (e.g. refused, then the customer changes their mind), or **in the depot**. | Customer service, or the depot | With the driver: he can deliver it ([Mission Status](partner-mission-status.md) `delivered`). In the depot: put it on a sheet ([Last Mile `add`](partner-last-mile.md#add)). |
+| `return_to_merchant` | The parcel goes **back to the merchant**. | **With the driver** (after calling the customer or the merchant), or **in the depot**. | Customer service, or the depot | With the driver: he can no longer deliver it; when he's back, `return` it with `"cancelled": true`. In the depot: send it with [Returns](partner-return.md). |
+| `return` | The driver is back: each parcel he couldn't deliver is checked into the sheet's depot. | End of the round, **after** each parcel's driver result ([Mission Status](partner-mission-status.md)). | Depot employee | Still for the customer (unreachable, postponed): a new sheet. Going to the merchant (refused, or decided): [Returns](partner-return.md). |
+
+`return` follows our depot's scan: the driver's result decides where each parcel goes, and
+`cancelled` is the scan button: `false` for a parcel going to the customer (a refused one
+included), `true` for one already going to the merchant. It is exactly the
+[Last Mile `return`](partner-last-mile.md#return): same body, same rules.
+[Delivery Round](delivery-round.md#every-action-at-a-glance) shows these actions next to the
+other two APIs.
 
 `retry` and `return_to_merchant` do, for each order, what our own staff do **for where the
 parcel is**: a quality-control agent while the driver still has it, a depot employee once
@@ -106,7 +112,7 @@ and `details.field` names the field.
 
 | Where the order is | `retry` | `return_to_merchant` |
 | --- | --- | --- |
-| **With the driver**: on a collected sheet (delivery still out, redated or declined) | Like our quality-control "Retry": it goes to the customer again; a declined delivery is back in progress with the driver. | Like our quality-control "Cancel": it goes back to the merchant; the delivery is marked declined, so **the driver can no longer deliver it**. When he is back, send `return`. |
+| **With the driver**: on a collected sheet (delivery still out, redated or declined) | Like our quality-control "Retry": it goes to the customer again; a declined delivery is back in progress with the driver. | Like our quality-control "Cancel": it goes back to the merchant; the delivery is marked declined, so **the driver can no longer deliver it**. When he is back, send `return` with `"cancelled": true`. |
 | **In the depot**, nothing open on it | Like our inbound "Retry": it goes to the customer again. Then put it on a sheet with [Last Mile `add`](partner-last-mile.md#add). | Like our "Return to merchant" button: it goes back to the merchant. |
 | In the depot on a sheet **not collected yet**, or on a **transfer** | Refused: `has_open_mission`. | Refused: `has_open_mission`. |
 
@@ -156,7 +162,8 @@ Some orders refused, **200**. The others **were applied**:
 | `retry` | in the depot | `inDepot`, now going to the customer | "retry" |
 | `return_to_merchant` | with the driver | `inTransit`, now going to the merchant | "declined" |
 | `return_to_merchant` | in the depot | `inDepot`, now going to the merchant | "scheduled for return to merchant" |
-| `return` | | as [Last Mile `return`](partner-last-mile.md#return) | as Last Mile `return` |
+| `return` | after unreachable / postponed | `inDepot` in the sheet's depot, still going to the customer | "dropped off" |
+| `return` | after refused, or already going to the merchant | `inDepot` in the sheet's depot, going to the merchant | "dropped off" |
 
 Each row shows "(via partner API)". These changes are **not** sent to your webhook feed:
 you made them. The merchant's own webhooks still fire.
