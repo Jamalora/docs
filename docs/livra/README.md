@@ -20,6 +20,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Returns (delivery partners)](partner-return.md)
 - [Last Mile (delivery partners)](partner-last-mile.md)
   - [Validation (delivery partners)](partner-validation.md): where its orders go, and what the driver brings back (staging only for now)
+  - [Mission Status (delivery partners)](partner-mission-status.md): what the driver records at the customer: delivered, unreachable, postponed, refused… (staging only for now)
 - [Drivers and Employees (delivery partners)](partner-staff.md) (staging only for now)
 
 > **Are you a delivery partner working with your own depots?**

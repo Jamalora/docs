@@ -13,7 +13,7 @@ orders show the right status and the merchant sees them go out.
 Each sheet is found by **your own `reference`**. You never store an id of ours.
 
 > **`return`, `deliver` and `retry` are deprecated.** `return` and `retry` move to
-> [Validation](partner-validation.md), `deliver` to the mission status API. They still work
+> [Validation](partner-validation.md), `deliver` to [Mission Status](partner-mission-status.md). They still work
 > until you have switched.
 
 ## Last Mile and Validation together
@@ -27,10 +27,10 @@ the driver brings back.
 | You load parcels for a driver in your depot | Last Mile `create`, `add`, `remove` |
 | The driver leaves with them | Last Mile `collect` |
 | The driver still has a parcel and you decide, after calling the customer, that it goes back to the merchant, or to the customer after all | Validation `return_to_merchant` / `retry` |
-| The driver can't deliver a parcel (unreachable, postponed, refused…) | the mission status API, right away |
+| The driver can't deliver a parcel (unreachable, postponed, refused…) | [Mission Status](partner-mission-status.md), right away |
 | The driver is back with parcels he couldn't deliver | Validation `return` (after their result) |
 | A parcel is back in the depot and you decide again | Validation `retry` (then Last Mile `add` on a new sheet) or `return_to_merchant` (then [Returns](partner-return.md)) |
-| A parcel is delivered | the mission status API |
+| A parcel is delivered | [Mission Status](partner-mission-status.md) |
 
 Same key, same signing, same `employeeId` and order ids on both.
 
@@ -318,7 +318,7 @@ item back into the depot with `"cancelled": true`: it goes back to the merchant.
 
 ### `deliver`
 
-> **Deprecated:** delivering moves to the mission status API (`delivered`). This action
+> **Deprecated:** delivering moves to [Mission Status](partner-mission-status.md) (`delivered`). This action
 > still works until then. An order going back to the merchant is refused (`not_for_customer`).
 
 ```json
@@ -647,7 +647,7 @@ Read the **`error` string**, not just the HTTP status.
 | `not_on_this_runsheet` | remove, return, deliver | The order isn't on this sheet, or it was already returned from it. | Check the order and the `reference`. |
 | `with_driver` | remove | The driver already has this parcel. | When it comes back, send `return`. |
 | `not_collected` | return, deliver | `collect` left this order in the depot (it changed after you added it). | `remove` it instead. |
-| `still_in_delivery` | return | The parcel is still out for delivery: no driver result was sent. | Send the driver's result (mission status API) first. |
+| `still_in_delivery` | return | The parcel is still out for delivery: no driver result was sent. | Send the driver's result ([Mission Status](partner-mission-status.md)) first. |
 | `should_be_return` | return | `cancelled: true`, but the order goes to the customer (a refused one too). | Send it with `"cancelled": false`. |
 | `should_be_merchant` | return | `cancelled: false`, but the order already goes to the merchant. | Send it with `"cancelled": true`. |
 | `busy` | all | Another call on this order is in flight. | Send it again. |

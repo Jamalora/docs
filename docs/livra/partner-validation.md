@@ -15,7 +15,7 @@ It replaces three actions of [Last Mile](partner-last-mile.md): `return`, `retry
 [Last Mile](partner-last-mile.md) keeps the sheet itself: `create`, `add`, `remove`,
 `collect`.
 
-Delivering is **not** here: it is a mission status, sent with the mission status API.
+Delivering is **not** here: it is a driver result, sent with [Mission Status](partner-mission-status.md) (`delivered`).
 
 ## Last Mile and Validation together
 
@@ -28,10 +28,10 @@ the driver brings back.
 | You load parcels for a driver in your depot | Last Mile `create`, `add`, `remove` |
 | The driver leaves with them | Last Mile `collect` |
 | The driver still has a parcel and you decide, after calling the customer, that it goes back to the merchant, or to the customer after all | Validation `return_to_merchant` / `retry` |
-| The driver can't deliver a parcel (unreachable, postponed, refused…) | the mission status API, right away |
+| The driver can't deliver a parcel (unreachable, postponed, refused…) | [Mission Status](partner-mission-status.md), right away |
 | The driver is back with parcels he couldn't deliver | Validation `return` (after their result) |
 | A parcel is back in the depot and you decide again | Validation `retry` (then Last Mile `add` on a new sheet) or `return_to_merchant` (then [Returns](partner-return.md)) |
-| A parcel is delivered | the mission status API |
+| A parcel is delivered | [Mission Status](partner-mission-status.md) |
 
 Same key, same signing, same `employeeId` and order ids on both.
 
@@ -53,7 +53,7 @@ Same key, same signing, same `employeeId` and order ids on both.
 | --- | --- |
 | `retry` | The orders go **to the customer again**. |
 | `return_to_merchant` | The orders go **back to the merchant**. |
-| `return` | The driver of a collected sheet is back with parcels he couldn't deliver, once their result was sent (mission status API). The result decides where each goes (refused → merchant); `cancelled` is our depot's scan button: `false` for an order going to the customer (a refused one included), `true` for one already going to the merchant. Exactly the [Last Mile `return`](partner-last-mile.md#return): same body, same rules. |
+| `return` | The driver of a collected sheet is back with parcels he couldn't deliver, once their result was sent ([Mission Status](partner-mission-status.md)). The result decides where each goes (refused → merchant); `cancelled` is our depot's scan button: `false` for an order going to the customer (a refused one included), `true` for one already going to the merchant. Exactly the [Last Mile `return`](partner-last-mile.md#return): same body, same rules. |
 
 `retry` and `return_to_merchant` do, for each order, what our own staff do **for where the
 parcel is**: a quality-control agent while the driver still has it, a depot employee once
@@ -201,7 +201,7 @@ Per order, in `errors`:
 | `invalid_status` | retry, return_to_merchant | Not in a depot or with a driver (e.g. missing). |
 | `not_on_this_runsheet` | return | Not on this sheet, or already returned from it. |
 | `not_collected` | return | Collect left it in the depot. Use Last Mile `remove`. |
-| `still_in_delivery` | return | Still out for delivery: no driver result was sent. Send it (mission status API) first. |
+| `still_in_delivery` | return | Still out for delivery: no driver result was sent. Send it ([Mission Status](partner-mission-status.md)) first. |
 | `should_be_return` | return | Goes to the customer (a refused one too): send it with `"cancelled": false`. |
 | `should_be_merchant` | return | Already goes to the merchant: send it with `"cancelled": true`. |
 | `busy` | all | Another call on this order is in flight. Send it again. |
@@ -219,7 +219,7 @@ and is not written twice. A call cut short (timeout) is finished by sending it a
 | `return` | `return`, same body |
 | `retry` with `orderIds` | `retry`, same `orderIds` |
 | `add` with `"retry": true` | `retry`, then Last Mile `add` |
-| `deliver` | the mission status API (`delivered`) |
+| `deliver` | [Mission Status](partner-mission-status.md) (`delivered`) |
 
 The old actions still work until you have switched; Last Mile `retry` now follows the same
 rules as `retry` here. `deliver` refuses an
