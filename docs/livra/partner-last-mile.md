@@ -32,11 +32,25 @@ brings back. **[Delivery Round](delivery-round.md) explains the whole round, who
 and when, with a full day call by call.** Same key, same signing, same `employeeId` and
 order ids on all three.
 
+### Which action, when
+
+| Action | What it's for | When | Details |
+| --- | --- | --- | --- |
+| `create` | Open a driver's round: one depot, one driver, one day (today or tomorrow), with or without parcels. | You plan the round. | [`create`](#create) |
+| `add` | Put parcels on the sheet. `"retry": true` sends a parcel going to the merchant to the customer again first; `"driverChange": true` takes it from another driver's sheet. | While loading, or after `collect` (a late load goes out at once). | [`add`](#add) |
+| `remove` | Take a parcel off: it won't leave with this driver. | Before `collect`, or for a parcel `collect` left behind. | [`remove`](#remove) |
+| `collect` | The driver leaves: every parcel on the sheet is out for delivery. | When he takes the parcels. | [`collect`](#collect) |
+| `return`, `deliver`, `retry` | *Deprecated* (see the note at the top): the driver's results go to [Mission Status](partner-mission-status.md), the return and `retry` to [Validation](partner-validation.md). | Production only, until the new APIs are live there. | [`return`](#return), [`deliver`](#deliver), [`retry`](#retry) |
+
+After `collect`, the round goes on in [Mission Status](partner-mission-status.md) (at each
+customer) and [Validation](partner-validation.md) (decisions, and the return to the depot).
+
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
 
 - [Last Mile, Mission Status and Validation together](#last-mile-mission-status-and-validation-together)
+  - [Which action, when](#which-action-when)
 - [1. What you need before you start](#1-what-you-need-before-you-start)
 - [2. The flow](#2-the-flow)
   - [The whole day of one sheet](#the-whole-day-of-one-sheet)

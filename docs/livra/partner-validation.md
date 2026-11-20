@@ -39,11 +39,18 @@ order ids on all three.
 
 ## 1. The three actions
 
-| Action | What it does |
-| --- | --- |
-| `retry` | The orders go **to the customer again**. |
-| `return_to_merchant` | The orders go **back to the merchant**. |
-| `return` | The driver of a collected sheet is back with parcels he couldn't deliver, once their result was sent ([Mission Status](partner-mission-status.md)). The result decides where each goes (refused → merchant); `cancelled` is our depot's scan button: `false` for an order going to the customer (a refused one included), `true` for one already going to the merchant. Exactly the [Last Mile `return`](partner-last-mile.md#return): same body, same rules. |
+| Action | What it does | When / where | Who | Then |
+| --- | --- | --- | --- | --- |
+| `retry` | The parcel goes **to the customer again**. | **With the driver** (e.g. refused, then the customer changes their mind), or **in the depot**. | Customer service, or the depot | With the driver: he can deliver it ([Mission Status](partner-mission-status.md) `delivered`). In the depot: put it on a sheet ([Last Mile `add`](partner-last-mile.md#add)). |
+| `return_to_merchant` | The parcel goes **back to the merchant**. | **With the driver** (after calling the customer or the merchant), or **in the depot**. | Customer service, or the depot | With the driver: he can no longer deliver it; when he's back, `return` it with `"cancelled": true`. In the depot: send it with [Returns](partner-return.md). |
+| `return` | The driver is back: each parcel he couldn't deliver is checked into the sheet's depot. | End of the round, **after** each parcel's driver result ([Mission Status](partner-mission-status.md)). | Depot employee | Still for the customer (unreachable, postponed): a new sheet. Going to the merchant (refused, or decided): [Returns](partner-return.md). |
+
+`return` follows our depot's scan: the driver's result decides where each parcel goes, and
+`cancelled` is the scan button: `false` for a parcel going to the customer (a refused one
+included), `true` for one already going to the merchant. It is exactly the
+[Last Mile `return`](partner-last-mile.md#return): same body, same rules.
+[Delivery Round](delivery-round.md#every-action-at-a-glance) shows these actions next to the
+other two APIs.
 
 `retry` and `return_to_merchant` do, for each order, what our own staff do **for where the
 parcel is**: a quality-control agent while the driver still has it, a depot employee once

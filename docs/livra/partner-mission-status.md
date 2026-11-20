@@ -44,6 +44,10 @@ collected with [Last Mile `collect`](partner-last-mile.md#collect):
 | can't find the parcel | `missing` |
 | made a mistake and wants to start over | `reset` |
 
+What comes next for each one (a new sheet, a Validation decision, the return to the depot)
+is in [Delivery Round, §3](delivery-round.md#3-after-each-driver-result-what-comes-next), and
+every action of the three APIs is in [Every action at a glance](delivery-round.md#every-action-at-a-glance).
+
 Send it **right away**. If the app is offline, send the results when it's back, each with
 the time it happened (`at`). You can send up to 100 results in one call, for any parcels of
 the same sheet.
