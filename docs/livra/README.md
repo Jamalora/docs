@@ -193,7 +193,7 @@ One endpoint, two actions on an order:
 
 | Action | Body | What it does |
 |---|---|---|
-| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup: the recipient's address and phones and the parcel's `size`, until the order is delivered, returned or cancelled (staging only for now); and switching it to an exchange or back to a regular order (`isExchange`). |
+| **Update** | no `action` | Patch-style edit of the order's fields while it waits for its pickup (`readyForPickUp`). After the pickup: the recipient's address and phones and the parcel's `size`, until the order is delivered, returned or cancelled; and switching it to an exchange or back to a regular order (`isExchange`). |
 | **Cancel** | `"action": "cancel"` | Cancels the order before the driver collects it. |
 
 If your API key is bound to a delivery partner, both actions reach only that partner's orders; any other order is answered with `order_not_found`, the same as one that doesn't exist.
@@ -230,15 +230,13 @@ Patch-style payload. Only `orderId` is required; all other fields are optional.
 
 - `orderId` must exist.
 - While the order is `readyForPickUp`, every field above can change.
-- *(Staging only for now.)* The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
+- The address, the phones and `size` can change at **any status until the order is delivered, returned or cancelled**: see [Update: address, phones and size after pickup](#update-address-phones-and-size-after-pickup).
 - After the pickup, the only other change is the exchange switch: see [Update: exchange after pickup](#update-exchange-after-pickup). Any other change is rejected with `order_update_not_permitted`.
-- `size` (staging only for now) is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order. `medium`, `large` and `extra_large` need a sous-contrat for that size on the order's contract; without one the update is refused with **400** `size_not_in_contract` and nothing changes. `small` always works (the contract's base fees).
+- `size` is one of `small`, `medium`, `large`, `extra_large`, as in Create Order. It sets which of the contract's prices applies to the order. `medium`, `large` and `extra_large` need a sous-contrat for that size on the order's contract; without one the update is refused with **400** `size_not_in_contract` and nothing changes. `small` always works (the contract's base fees).
 - Missing fields keep their current DB value.
 - If a provided field has the same value, it is ignored (no rewrite).
 
 ### Update: address, phones and size after pickup
-
-> **On staging only for now** (`https://staging.livra.mofavo.com/update_order`), for testing. On production, these fields still change only while the order is `readyForPickUp`, and `size` is not accepted on Update yet.
 
 Until the order is **delivered, returned or cancelled**, you can correct where it goes, how to reach the customer, and the parcel's size, whatever its status (`inDepot`, `inTransit`, …):
 
@@ -257,9 +255,9 @@ Until the order is **delivered, returned or cancelled**, you can correct where i
 }
 ```
 
-- The API checks the order on **every call**. The order counts as finished when its status says so (`delivered`, `exchange-complete`, `returned`, `exchange-returned`, `cancelled`) **or** when it has a delivery, return or cancellation date. A finished order is refused with **400** `order_already_delivered`, `order_already_returned` or `order_cancelled`, with its `orderStatus`, and nothing changes.
+- The API checks the order on **every call**. The order counts as finished when its status says so (`delivered`, `exchange-complete`, `returned`, `exchange-returned`, `cancelled`) **or** when it has a delivery, return or cancellation date. A finished order is refused with **400** `order_already_delivered`, `order_already_returned` or `order_cancelled`, with its `orderStatus`, and nothing changes. A finished status picks the code; otherwise delivery, then return, then cancellation date (an order cancelled after pickup and then returned is `order_already_returned`).
 - The same checks as Create Order: `primaryPhone`, `primaryCity` and `primaryState` can't be empty, and `size` must be one of the four sizes.
-- *(Staging only for now.)* **The governorate (`primaryState`) can't change while the parcel is `inTransit`**: the parcel is on the road to the old governorate's depot and would not be re-routed. Such an update is refused with **400** `governorate_change_in_transit` (with `orderStatus`), and nothing changes; send it again once the parcel is `inDepot`. Sending the same governorate again is fine.
+- **The governorate (`primaryState`) can't change while the parcel is `inTransit`**: the parcel is on the road to the old governorate's depot and would not be re-routed. Such an update is refused with **400** `governorate_change_in_transit` (with `orderStatus`), and nothing changes; send it again once the parcel is `inDepot`. Sending the same governorate again is fine, even in another case, accent or spacing (`"tunis"` for `"Tunis"`): it's not a change and the stored value is kept.
 - After the pickup it needs a **delivery partner's key** (Livra's), and reaches only that partner's orders. Orders made in the merchant app, and orders handed over to another delivery partner (outsourced), are refused (`order_managed_in_merchant_app`, `order_outsourced`).
 - You can send these fields together with an exchange switch. Any other field after the pickup (name, amount, products, instructions, …) is still rejected with `order_update_not_permitted`.
 - The order's history shows each change (the size as the order type), who made it, when, and the order's status at that moment.
@@ -349,8 +347,8 @@ What each case does:
   - `order_cancelled`: the order is cancelled (by status or cancellation date).
   - `order_managed_in_merchant_app`: the order was made in the merchant app.
   - `order_outsourced`: the order has been handed over to another delivery partner.
-  - `governorate_change_in_transit` *(staging only for now)*: a new `primaryState` while the parcel is `inTransit`. Wait until it is `inDepot`.
-  - `size_not_in_contract` *(staging only for now)*: the order's contract has no sous-contrat (price) for the `size` sent. Ask Mofavo to add one to the merchant's contract, or keep the current size.
+  - `governorate_change_in_transit`: a new `primaryState` while the parcel is `inTransit`. Wait until it is `inDepot`.
+  - `size_not_in_contract`: the order's contract has no sous-contrat (price) for the `size` sent. Ask Mofavo to add one to the merchant's contract, or keep the current size.
   - Field errors, e.g. `Invalid field: size (must be one of small, medium, large, extra_large)`, `Invalid field: exchangeOutcome (must be happened or declined)`, `Invalid field: depotId (required when itemsAt is depot)`.
   - plus all create-order 400 errors
 
