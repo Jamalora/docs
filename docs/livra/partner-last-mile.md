@@ -587,6 +587,7 @@ Read the **`error` string**, not just the HTTP status.
 | Status | `error` | What to do |
 | --- | --- | --- |
 | **500** | `internal_error` | Nothing was applied. Retry once; if it fails again, send us the `x-request-id`. |
+| **503** | none: the body is `{"message":"Service Unavailable"}` | Too many calls at the same time: at most 20 run together, extra ones are turned away before they start. Nothing was applied. Send it again after a short pause (1 s, then 2 s, 4 s…). |
 
 ### Errors on one order (in `errors`)
 
@@ -623,8 +624,8 @@ Lost the answer? Timed out? **Send the same call again.** What is already done c
 - a `retry` of an order already going to the customer,
 - a `collect` of a sheet already collected (it finishes anything left).
 
-Worth retrying automatically: `busy` (after a short pause), `internal_error` (once), and
-network errors. Every other error gives the same answer the second time.
+Worth retrying automatically: `busy` (after a short pause), `internal_error` (once), a
+**503** (after a short pause, a little longer each time), and network errors. Every other error gives the same answer the second time.
 
 ## 9. Checklist before you go live
 
