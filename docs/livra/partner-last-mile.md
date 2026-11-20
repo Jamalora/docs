@@ -374,8 +374,8 @@ after a timeout) is still safe: it answers `ok`.
 
 **No `reference`**: these orders are on no sheet, they wait in a depot.
 
-For orders going **back to the merchant** (for example after `return` with
-`cancelled: true`) that you want to **deliver to the customer** after all. It is
+For orders going **back to the merchant** (for example a refused parcel after `return`, or
+after Validation `return_to_merchant`) that you want to **deliver to the customer** after all. It is
 [Validation](partner-validation.md) `retry`, with the same rules: with the driver or in the
 depot with nothing open on it, and not cancelled, delivered or returned. Then put it on a
 sheet with `add`. The merchant still sees that the order needed attention until they review it.
