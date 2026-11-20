@@ -95,12 +95,18 @@ You also need these ids from us (we give you the lists):
 ### The whole day of one sheet
 
 ```
- IN THE DEPOT                          ON THE ROAD                     END OF THE DAY
- ────────────                          ───────────                     ──────────────
- create ─► add ─► add ─► (remove) ─►  collect  ─►  deliver   (delivered)
-                                                   return    (brought back)  ─►  the sheet
-                                                                                 closes itself
+ IN THE DEPOT (Last Mile)              ON THE ROAD (Mission Status)        BACK IN THE DEPOT (Validation)
+ ────────────────────────              ────────────────────────────        ──────────────────────────────
+ create ─► add ─► add ─► (remove) ─►   collect ─► delivered                 (nothing: done)
+                                                  unreachable / postponed /
+                                                  refused / wrong phone  ─►   return  ─►  the sheet
+                                                                                          closes itself
 ```
+
+Last Mile is the **sheet**: steps 1 to 4. What the driver does at each customer goes to
+[Mission Status](partner-mission-status.md), and what he brings back to
+[Validation](partner-validation.md) `return`. [Delivery Round](delivery-round.md) shows the
+whole day across the three.
 
 | Step | When | Call | What happens to the order |
 | --- | --- | --- | --- |
@@ -108,23 +114,29 @@ You also need these ids from us (we give you the lists):
 | **2. Load it** | You scan parcels for that driver in the depot. | `add` (any number of times) | Stays `inDepot`, waiting for the driver. |
 | **3. Unload** (if needed) | A parcel won't leave with this driver after all. | `remove` | Stays `inDepot`, off the sheet. |
 | **4. The driver leaves** | The driver takes the parcels. | `collect` | `inTransit`: out for delivery with the driver. |
-| **5a. Delivered** | The driver delivered it. | `deliver` | `delivered`. Counts in the merchant's settlement. |
-| **5b. Brought back** | The driver couldn't deliver it (you sent the result: unreachable, postponed, refused…) and is back in the depot. | `return` | `inDepot`. Refused by the customer: going back to the merchant. Otherwise: for another attempt. |
+| **5a. Delivered** | The driver delivered it. | [Mission Status](partner-mission-status.md) `delivered` | `delivered`. Counts in the merchant's settlement. |
+| **5b. Not delivered** | The driver couldn't deliver it: unreachable, postponed, refused… | [Mission Status](partner-mission-status.md), right away | Stays `inTransit` with the driver. |
+| **5c. Brought back** | The driver is back in the depot with what he couldn't deliver. | [Validation](partner-validation.md) `return` | `inDepot`. Refused by the customer: going back to the merchant. Otherwise: for another attempt. |
 | **6. Done** | Every order is delivered, returned or removed. | nothing | The sheet **closes itself**. |
 
-**Every order on a collected sheet must end with `deliver` or `return`.** Until then, the
-merchant sees it as "out for delivery", and the sheet stays open.
+**Every order on a collected sheet must end delivered (Mission Status) or returned
+(Validation `return`).** Until then, the merchant sees it as "out for delivery", and the
+sheet stays open.
+
+> **In production today** (until Mission Status and Validation are live there), step 5a is
+> Last Mile [`deliver`](#deliver), step 5b is not sent, and step 5c is Last Mile
+> [`return`](#return) with the old rules (see the note at the top of this page).
 
 ### When something changes
 
 | Situation | What you send |
 | --- | --- |
-| A parcel will be tried again tomorrow | The driver's result (postponed / unreachable), then `return` with `"cancelled": false`, then `add` it to tomorrow's sheet. |
-| The customer refused it, it goes back to the merchant | The driver's result (refused), then `return` with `"cancelled": false` (the return sends it to the merchant), then send it with [Returns](partner-return.md). |
-| You want to deliver a returned-to-merchant order to the customer after all | `retry` (no `reference`), then `add`. Or both at once: `add` with `"retry": true`. |
+| A parcel will be tried again tomorrow | Mission Status `postponed` (or `unreachable`), then Validation `return` with `"cancelled": false`, then `add` it to tomorrow's sheet. |
+| The customer refused it, it goes back to the merchant | Mission Status `declined`, then Validation `return` with `"cancelled": false` (the return sends it to the merchant), then send it with [Returns](partner-return.md). |
+| You want to deliver an order going back to the merchant to the customer after all | Validation `retry`, then `add`. Or both at once: `add` with `"retry": true`. |
 | An order must go with **another driver** | `add` it to the other driver's sheet with `"driverChange": true`. It leaves the first sheet by itself. |
 | An order was cancelled after you loaded it | `collect` leaves it in the depot and lists it in `errors`. `remove` it. |
-| An **exchange** order | `deliver` when the parcels are swapped at the door (the driver keeps the old item), then `return` with `"cancelled": true` when the driver brings the old item back. |
+| An **exchange** order | Mission Status `delivered` when the parcels are swapped at the door (the driver keeps the old item), then Validation `return` with `"cancelled": true` when the driver brings the old item back. |
 
 ### Rules for every sheet
 
@@ -566,20 +578,16 @@ that id is the first thing we ask for.
 | `add` (before `collect`) | Stays `inDepot`, on the sheet. If it still had a pick-up or a transfer **planned** (not on the road), that trip is closed as failed: the parcel leaves with this driver. | "mission created" and "set for delivery" |
 | `remove` | Stays `inDepot`, off the sheet. It can go on another sheet. | "removed from runsheet" |
 | `collect`, or `add` after `collect` | `inTransit` (out for delivery) with the sheet's driver. | "picked up" |
-| `return` after unreachable / postponed | `inDepot` in the sheet's depot, still for the customer. | "dropped off" |
-| `return` after refused | `inDepot` in the sheet's depot, now going back to the merchant. | "dropped off" |
-| `deliver` | `delivered`. | "dropped off" |
-| `deliver`, exchange order | `inTransit`: the driver brings the old item back. | "exchanged" |
-| `return`, exchange already delivered | `inDepot`, going back to the merchant. | "dropped off" |
-| `retry`, or `add` with `retry: true` | Stays `inDepot`, now going to the customer. | "retry" |
+| `add` with `retry: true` | Stays `inDepot`, now going to the customer. | "retry" |
+| `return` / `deliver` / `retry` (deprecated) | As Validation `return` / Mission Status `delivered` / Validation `retry`: see [Delivery Round, §6](delivery-round.md#6-the-parcels-status-at-each-step). | |
 
 You can read any order back with [Get Order](partner-get-order.md) to see its `status`.
 
 ### Webhooks
 
 The status changes above are **not sent back to your webhook feed**. You made them with
-this endpoint, so you already know: a `collect`, a `return` or a `deliver` sends you no
-`status.changed`.
+this endpoint, so you already know: a `collect` sends you no `status.changed`. The same
+goes for [Mission Status](partner-mission-status.md) and [Validation](partner-validation.md).
 
 Everything else still reaches you as before, including changes made on our side to the
 same orders. The merchant's own order webhooks aren't affected: the merchant is still
@@ -670,8 +678,8 @@ network errors. Every other error gives the same answer the second time.
 
 ## 9. Checklist before you go live
 
-- [ ] One full round tested on **staging**: `create` → `add` → `remove` → `collect` → `deliver` and `return`, until the sheet closes.
-- [ ] Every order on a collected sheet ends with `deliver` or `return`, so the sheet closes and the merchant sees the right status.
+- [ ] One full round tested on **staging**: `create` → `add` → `remove` → `collect` → the driver's results ([Mission Status](partner-mission-status.md)) → [Validation](partner-validation.md) `return`, until the sheet closes.
+- [ ] Every order on a collected sheet ends delivered (Mission Status) or returned (Validation `return`), so the sheet closes and the merchant sees the right status.
 - [ ] The signature is computed over the **exact body string** you send.
 - [ ] Ids are sent as **numbers**, not strings, and no field outside the ones listed here is sent.
 - [ ] Each delivery sheet has **one stable `reference`**, sent on every call for it, and a new one for each round.
@@ -691,9 +699,10 @@ network errors. Every other error gives the same answer the second time.
 | `404 runsheet_not_found` on `add` | The `create` wasn't sent, failed, or used a different `reference` (check the case). |
 | `not_in_depot` on most orders | The parcels weren't accepted in depot with [Accept In Depot](partner-accept-in-depot.md) before going on the sheet. |
 | `409 driver_has_open_runsheet` on `create` | Yesterday's sheet for that driver still has orders and wasn't collected. |
-| `out_for_delivery` when you re-load yesterday's parcels | The driver's undelivered parcels were never sent back with `return` on yesterday's sheet. |
+| `out_for_delivery` when you re-load yesterday's parcels | The driver's undelivered parcels were never sent back with Validation `return` on yesterday's sheet. |
+| `still_in_delivery` on `return` | No driver result was sent for that parcel: send it to [Mission Status](partner-mission-status.md) first. |
 | `on_other_runsheet` when you give a parcel to another driver | `add` was sent without `"driverChange": true`. |
-| Orders stay "out for delivery" for days | The sheet's orders never got a `deliver` or a `return`. Every collected order needs one. |
+| Orders stay "out for delivery" for days | The sheet's orders were never delivered (Mission Status) or returned (Validation `return`). Every collected order needs one. |
 
 Still stuck? Email `ops@mofavo.com` with the `x-request-id` of a failing call.
 
