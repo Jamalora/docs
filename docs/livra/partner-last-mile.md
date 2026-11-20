@@ -12,10 +12,31 @@ orders show the right status and the merchant sees them go out.
 
 Each sheet is found by **your own `reference`**. You never store an id of ours.
 
+> **Staging only for now:** [Mission Status](partner-mission-status.md), [Validation](partner-validation.md)
+> and the new `return` rules on this page (the driver's result first, `cancelled` = the scan
+> button) are on staging (`https://staging.livra.mofavo.com`) for testing. **In production
+> today**, `return` still works the old way (`"cancelled": true` = the customer refused, it
+> goes back to the merchant; `false` = another attempt; no driver result needed), and
+> `deliver` and `retry` work as described. We will tell you when the new rules are live.
+>
+> **`return`, `deliver` and `retry` are deprecated** once they are: `return` and `retry` move
+> to [Validation](partner-validation.md), `deliver` to [Mission Status](partner-mission-status.md).
+> They still work until you have switched.
+
+## Last Mile, Mission Status and Validation together
+
+These three APIs cover one driver's round: Last Mile builds the sheet and records the driver
+leaving, [Mission Status](partner-mission-status.md) records what he does at each customer,
+and [Validation](partner-validation.md) decides where a parcel goes and takes back what he
+brings back. **[Delivery Round](delivery-round.md) explains the whole round, who calls what
+and when, with a full day call by call.** Same key, same signing, same `employeeId` and
+order ids on all three.
+
 Follow the sections **in order**. Everything you need to copy-paste is here.
 
 ## Contents
 
+- [Last Mile, Mission Status and Validation together](#last-mile-mission-status-and-validation-together)
 - [1. What you need before you start](#1-what-you-need-before-you-start)
 - [2. The flow](#2-the-flow)
   - [The whole day of one sheet](#the-whole-day-of-one-sheet)
@@ -88,7 +109,7 @@ You also need these ids from us (we give you the lists):
 | **3. Unload** (if needed) | A parcel won't leave with this driver after all. | `remove` | Stays `inDepot`, off the sheet. |
 | **4. The driver leaves** | The driver takes the parcels. | `collect` | `inTransit`: out for delivery with the driver. |
 | **5a. Delivered** | The driver delivered it. | `deliver` | `delivered`. Counts in the merchant's settlement. |
-| **5b. Brought back** | The driver couldn't deliver it and is back in the depot. | `return` with `cancelled: false` or `true` | `inDepot`. `false`: for another attempt. `true`: going back to the merchant. |
+| **5b. Brought back** | The driver couldn't deliver it (you sent the result: unreachable, postponed, refused…) and is back in the depot. | `return` | `inDepot`. Refused by the customer: going back to the merchant. Otherwise: for another attempt. |
 | **6. Done** | Every order is delivered, returned or removed. | nothing | The sheet **closes itself**. |
 
 **Every order on a collected sheet must end with `deliver` or `return`.** Until then, the
@@ -98,12 +119,12 @@ merchant sees it as "out for delivery", and the sheet stays open.
 
 | Situation | What you send |
 | --- | --- |
-| A parcel will be tried again tomorrow | `return` with `"cancelled": false`, then `add` it to tomorrow's sheet. |
-| The customer refused it, it goes back to the merchant | `return` with `"cancelled": true`, then send it with [Returns](partner-return.md). |
+| A parcel will be tried again tomorrow | The driver's result (postponed / unreachable), then `return` with `"cancelled": false`, then `add` it to tomorrow's sheet. |
+| The customer refused it, it goes back to the merchant | The driver's result (refused), then `return` with `"cancelled": false` (the return sends it to the merchant), then send it with [Returns](partner-return.md). |
 | You want to deliver a returned-to-merchant order to the customer after all | `retry` (no `reference`), then `add`. Or both at once: `add` with `"retry": true`. |
 | An order must go with **another driver** | `add` it to the other driver's sheet with `"driverChange": true`. It leaves the first sheet by itself. |
 | An order was cancelled after you loaded it | `collect` leaves it in the depot and lists it in `errors`. `remove` it. |
-| An **exchange** order | `deliver` when the parcels are swapped at the door (the driver keeps the old item), then `return` when the driver brings the old item back. |
+| An **exchange** order | `deliver` when the parcels are swapped at the door (the driver keeps the old item), then `return` with `"cancelled": true` when the driver brings the old item back. |
 
 ### Rules for every sheet
 
@@ -251,6 +272,10 @@ is refused with `400 invalid_payload`.)
 
 ### `return`
 
+> **Deprecated:** send it to [Validation](partner-validation.md) instead, with the same body.
+> This action still works the same way until you have switched. *The rules below are the new
+> ones, on staging only for now; see the note at the top of this page for production.*
+
 ```json
 {
   "action": "return",
@@ -267,21 +292,33 @@ is refused with `400 invalid_payload`.)
 | --- | --- | --- |
 | `orders` | list | Required. 1 to 500 entries, each order once. Each entry has exactly `orderId` (number) and `cancelled` (`true` or `false`). |
 
-Only **after `collect`**, for parcels the driver took and brings back **undelivered**. Each
-one is checked back into the sheet's depot, and its delivery is closed as failed:
+Only **after `collect`**, for parcels the driver took and brings back **undelivered**, and
+**once the driver's result was sent** (unreachable, postponed, refused… with the mission
+status API). It works exactly like our depot's check-in of a driver's parcels. Each one is
+checked back into the sheet's depot, and its delivery is closed as failed:
 
-- **`cancelled: false`**: it will be tried again. It stays for the customer: put it on a
-  new sheet with `add`.
-- **`cancelled: true`**: the customer refused it, or it can't be delivered. It now goes
-  **back to the merchant**, who is asked to check it. Send it back with [Returns](partner-return.md).
+- **The driver's result decides where it goes.** Refused by the customer: it now goes
+  **back to the merchant** (who was already asked to check it). Send it with
+  [Returns](partner-return.md), or Validation `retry` if the merchant wants another attempt.
+  Unreachable or postponed: it stays for the customer; put it on a new sheet with `add`.
+- **`cancelled` is our depot's scan button, and must match the order as it is now:**
+  `false` for an order going to the customer, **a refused one included** (the refusal
+  doesn't change its destination; the return does); `true` for an order already going to
+  the merchant (after Validation `return_to_merchant`, or an exchange swapped at the door).
+  If it doesn't match, the order is refused (`should_be_return` / `should_be_merchant`) and
+  nothing changes.
+- A parcel still out for delivery with no result sent is refused (`still_in_delivery`).
 
 Until you send `return`, a parcel that's out with a driver is refused by [Accept In Depot](partner-accept-in-depot.md),
 [Transfers](partner-transfers.md) and [Returns](partner-return.md), and by `add` on another sheet.
 
 For an **exchange** order you already sent with `deliver` (see below), `return` takes the old
-item back into the depot: it goes back to the merchant, whatever `cancelled` says.
+item back into the depot with `"cancelled": true`: it goes back to the merchant.
 
 ### `deliver`
+
+> **Deprecated:** delivering moves to [Mission Status](partner-mission-status.md) (`delivered`). This action
+> still works until then. An order going back to the merchant is refused (`not_for_customer`).
 
 ```json
 {
@@ -309,6 +346,8 @@ after a timeout) is still safe: it answers `ok`.
 
 ### `retry`
 
+> **Deprecated:** send [Validation](partner-validation.md) `retry` instead, same `orderIds`.
+
 ```json
 {
   "action": "retry",
@@ -324,10 +363,10 @@ after a timeout) is still safe: it answers `ok`.
 **No `reference`**: these orders are on no sheet, they wait in a depot.
 
 For orders going **back to the merchant** (for example after `return` with
-`cancelled: true`) that you want to **deliver to the customer** after all. Each one must be
-in a depot, with nothing open on it (not on a sheet, not on a return), and not cancelled,
-delivered or returned. It stays in the depot, now going to the customer: put it on a sheet
-with `add`. The merchant still sees that the order needed attention until they review it.
+`cancelled: true`) that you want to **deliver to the customer** after all. It is
+[Validation](partner-validation.md) `retry`, with the same rules: with the driver or in the
+depot with nothing open on it, and not cancelled, delivered or returned. Then put it on a
+sheet with `add`. The merchant still sees that the order needed attention until they review it.
 
 To do both in one call, send `add` with `"retry": true` instead.
 
@@ -527,8 +566,8 @@ that id is the first thing we ask for.
 | `add` (before `collect`) | Stays `inDepot`, on the sheet. If it still had a pick-up or a transfer **planned** (not on the road), that trip is closed as failed: the parcel leaves with this driver. | "mission created" and "set for delivery" |
 | `remove` | Stays `inDepot`, off the sheet. It can go on another sheet. | "removed from runsheet" |
 | `collect`, or `add` after `collect` | `inTransit` (out for delivery) with the sheet's driver. | "picked up" |
-| `return`, `cancelled: false` | `inDepot` in the sheet's depot, still for the customer. | "rescheduled" and "dropped off" |
-| `return`, `cancelled: true` | `inDepot` in the sheet's depot, now going back to the merchant. | "declined" and "dropped off" |
+| `return` after unreachable / postponed | `inDepot` in the sheet's depot, still for the customer. | "dropped off" |
+| `return` after refused | `inDepot` in the sheet's depot, now going back to the merchant. | "dropped off" |
 | `deliver` | `delivered`. | "dropped off" |
 | `deliver`, exchange order | `inTransit`: the driver brings the old item back. | "exchanged" |
 | `return`, exchange already delivered | `inDepot`, going back to the merchant. | "dropped off" |
@@ -607,6 +646,9 @@ Read the **`error` string**, not just the HTTP status.
 | `not_on_this_runsheet` | remove, return, deliver | The order isn't on this sheet, or it was already returned from it. | Check the order and the `reference`. |
 | `with_driver` | remove | The driver already has this parcel. | When it comes back, send `return`. |
 | `not_collected` | return, deliver | `collect` left this order in the depot (it changed after you added it). | `remove` it instead. |
+| `still_in_delivery` | return | The parcel is still out for delivery: no driver result was sent. | Send the driver's result ([Mission Status](partner-mission-status.md)) first. |
+| `should_be_return` | return | `cancelled: true`, but the order goes to the customer (a refused one too). | Send it with `"cancelled": false`. |
+| `should_be_merchant` | return | `cancelled: false`, but the order already goes to the merchant. | Send it with `"cancelled": true`. |
 | `busy` | all | Another call on this order is in flight. | Send it again. |
 | `internal_error` | all | Our error on this order. | Send it again later. |
 
