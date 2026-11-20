@@ -242,7 +242,11 @@ mission, and `settlement` only after the delivery partner settles.
       "deliveryInstructions": "Call on arrival"
     },
 
-    "merchant": { "id": 153, "name": "Promo Shop" },
+    "merchant": {
+      "id": 153,
+      "name": "Promo Shop",
+      "address": { "street": "Avenue Habib Bourguiba", "city": "Ksar Hellal", "state": "Monastir", "zipcode": "5070" }
+    },
 
     "sender": {
       "id": 332,
@@ -307,8 +311,11 @@ The primary recipient.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `merchant.id` / `merchant.name` | number / string | The order's owning merchant. |
+| `merchant.address` | object | `{ street, city, state, zipcode }`: the merchant's own address, with the field names of Create Merchant / [Update Merchant](partner-update-merchant.md). Any field may be `null`. Sent on the order events and `invoice.settled` only; on `driver.*` and `change_request.*` events `merchant` is `{ id, name }` with no `address` key. |
 | `sender.id` / `sender.name` | number / string | The expedition origin (the merchant's sending entity). |
 | `sender.address` | object | `{ street, city, state }` — senders have no zone or zipcode. |
+
+Use `merchant.address` to keep your copy of the merchant's address in sync: when it differs from yours, ours is the current one. An address changed on our side reaches you with that merchant's next order event.
 
 #### `products`
 
