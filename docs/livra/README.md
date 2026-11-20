@@ -18,6 +18,7 @@ This document describes how to call Livra integration endpoints from your app.
 - [Merchant Settlement (delivery partners)](partner-merchant-settlement.md)
 - [Driver Settlement (delivery partners)](partner-driver-settlement.md) (staging only for now)
 - [Returns (delivery partners)](partner-return.md)
+- [Delivery Round (delivery partners)](delivery-round.md): **start here** for Last Mile, Mission Status and Validation: who calls what, when (staging only for now)
 - [Last Mile (delivery partners)](partner-last-mile.md)
   - [Validation (delivery partners)](partner-validation.md): where its orders go, and what the driver brings back (staging only for now)
   - [Mission Status (delivery partners)](partner-mission-status.md): what the driver records at the customer: delivered, unreachable, postponed, refused… (staging only for now)
